@@ -5,6 +5,14 @@ des Computernamens und der übrigen Gerätekennungen – ohne Windows neu zu ins
 Es bildet die Funktionen von [SIDCHG](https://www.stratesave.com/html/sidchg.html) in einer
 Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 
+## Download
+
+* **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
+  [`release/SidWechsler-1.0.0.0-win-x64.exe`](release/SidWechsler-1.0.0.0-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](release/SidWechsler-1.0.0.0-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.0>
+* Selbst bauen: siehe [Bauen](#bauen).
+
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
