@@ -1,0 +1,89 @@
+name: Release bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Vorhandener Release-Tag, an den die EXE angehaengt wird"
+        required: true
+        default: "v1.0.0.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      - name: .NET 8 installieren
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Tests ausfuehren
+        run: dotnet run --project tests/SidChanger.Tests -c Release
+
+      - name: EXE bauen (self-contained, Single-File, x64)
+        run: >
+          dotnet publish src/SidChanger.App/SidChanger.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -o dist/win-x64
+
+      - name: Umbenennen und Pruefsumme erzeugen
+        id: meta
+        shell: pwsh
+        run: |
+          [xml]$proj = Get-Content src/SidChanger.App/SidChanger.App.csproj
+          $version = ($proj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
+          if (-not $version) { $version = "1.0.0.0" }
+          $asset = "SidWechsler-$version-win-x64.exe"
+          Move-Item "dist/win-x64/SidWechsler.exe" "dist/win-x64/$asset"
+          $hash = (Get-FileHash "dist/win-x64/$asset" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $asset" | Out-File -Encoding ascii "dist/win-x64/$asset.sha256"
+          Get-ChildItem dist/win-x64 | Select-Object Name, Length
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "asset=$asset" >> $env:GITHUB_OUTPUT
+
+      - name: An Release anhaengen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: SID-Wechsler ${{ steps.meta.outputs.version }}
+          body: |
+            ## SID-Wechsler ${{ steps.meta.outputs.version }}
+
+            Deutsche WPF-Oberflaeche zum Aendern der lokalen Computer-SID, des Computernamens und
+            der zugehoerigen Geraete- und Anwendungskennungen.
+
+            **Download:** `${{ steps.meta.outputs.asset }}` (Windows x64, self-contained
+            Single-File-Build - es ist keine .NET-Installation noetig).
+            Die Pruefsumme liegt als `.sha256` daneben.
+
+            **Enthaltene Aktionen (jeweils einzeln waehlbar):** Computer-SID, Computername,
+            WSUS-Client-ID, MachineGuid, Machine-ID, Device-ID, MSDTC-CID, DHCPv6-DUID,
+            SQL-Server-master, Vault/DPAPI, OneDrive- und App-Kennungen, Profil-ACLs,
+            Taskplaner-Aufgaben.
+
+            **Vor jeder Aenderung** wird eine Sicherung unter
+            `C:\\ProgramData\\SidChanger\\Backups` angelegt; die letzte Aenderung laesst sich
+            zuruecknehmen. Das Tool muss als Administrator laufen.
+
+            **Achtung:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Nach dem
+            Aendern der SID sind bestehende Benutzerprofile und Dienste anzupassen; ein
+            Wiederherstellungspunkt wird dringend empfohlen.
+          files: |
+            dist/win-x64/${{ steps.meta.outputs.asset }}
+            dist/win-x64/${{ steps.meta.outputs.asset }}.sha256
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          make_latest: "true"
