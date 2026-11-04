@@ -14,3 +14,4 @@ publish/
 
 # Build-Artefakte (die EXE wird als Release-Anhang verteilt)
 dist/
+release/
