@@ -1,0 +1,16 @@
+# Build-Ergebnisse
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Veröffentlichung
+publish/
+*.publishsettings
+
+# Lokale Notizen
+*.local.md
+
+# Build-Artefakte (die EXE wird als Release-Anhang verteilt)
+dist/

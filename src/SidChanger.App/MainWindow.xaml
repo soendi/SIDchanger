@@ -1,0 +1,318 @@
+<Window x:Class="SidChanger.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SID-Wechsler – Computer-SID und Computername ändern"
+        Height="860" Width="1220" MinHeight="660" MinWidth="1040"
+        Background="{StaticResource WindowBackground}"
+        FontFamily="Segoe UI" FontSize="13"
+        WindowStartupLocation="CenterScreen"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Kopfbereich -->
+        <Border Grid.Row="0" Background="#141A20" BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="0,0,0,1" Padding="22,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="SID-Wechsler" FontSize="21" FontWeight="Bold" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,3,0,0"
+                               Text="Computer-SID, Computername und Gerätekennungen ändern – ohne Neuinstallation" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Text="Computer: " Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ComputerName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0">
+                        <TextBlock Text="SID-Quelle: " Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SidSource}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Inhalt -->
+        <Grid Grid.Row="1" Margin="22,18,22,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.4*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+                <StackPanel>
+
+                    <!-- Warnhinweis -->
+                    <Border Background="#2A1A1C" BorderBrush="#5B2C31" BorderThickness="1"
+                            CornerRadius="10" Padding="14" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Vor der Änderung bitte beachten"
+                                       FontWeight="SemiBold" Foreground="#F0B0B0" Margin="0,0,0,5" />
+                            <TextBlock Style="{StaticResource Muted}" Foreground="#D9B4B4"
+                                       Text="Nur auf geklonten Rechnern oder Images verwenden. Virenscanner-Echtzeitschutz deaktivieren, BitLocker aussetzen, alle anderen Benutzer abmelden. Die Änderung niemals unterbrechen – ein Abbruch kann Windows unbrauchbar machen." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Computer-SID -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Computer-SID" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,3,0,0"
+                                       Text="Die lokale Computer-SID (S-1-5-21-A-B-C) wird in SAM und SECURITY durch eine neue Zufalls-SID ersetzt." />
+
+                            <TextBlock Text="Aktuelle SID" Style="{StaticResource Label}" />
+                            <TextBox Style="{StaticResource Input}" Text="{Binding OldSid, Mode=OneWay}" IsReadOnly="True" />
+
+                            <TextBlock Text="Neue SID" Style="{StaticResource Label}" />
+                            <TextBox Style="{StaticResource Input}"
+                                     Text="{Binding NewSid, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding IsCustomSidEnabled}" />
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <CheckBox Grid.Column="0" Style="{StaticResource OptionCheck}" VerticalAlignment="Center"
+                                          Content="Zufällige SID verwenden (empfohlen)"
+                                          IsChecked="{Binding GenerateRandomSid, Mode=TwoWay}" />
+
+                                <Button Grid.Column="1" Content="Neu erzeugen" Style="{StaticResource GhostButton}"
+                                        Command="{Binding RegenerateSidCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Computername und Beschreibung -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Computername" Style="{StaticResource SectionTitle}" />
+
+                            <CheckBox Style="{StaticResource OptionCheck}" Margin="0,8,0,0"
+                                      Content="Computernamen ändern"
+                                      IsChecked="{Binding ComputerNameFeature.IsSelected, Mode=TwoWay}" />
+
+                            <TextBox Style="{StaticResource Input}" Margin="0,8,0,0"
+                                     Text="{Binding NewComputerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding ComputerNameFeature.IsSelected}" />
+
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                                       Text="Maximal 15 Zeichen (Buchstaben, Ziffern, Bindestrich). Platzhalter: ? = Zufallszeichen, * = MAC-Adresse." />
+
+                            <CheckBox Style="{StaticResource OptionCheck}" Margin="0,14,0,0"
+                                      Content="Computerbeschreibung ändern"
+                                      IsChecked="{Binding DescriptionFeature.IsSelected, Mode=TwoWay}" />
+
+                            <TextBox Style="{StaticResource Input}" Margin="0,8,0,0"
+                                     Text="{Binding NewComputerDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding DescriptionFeature.IsSelected}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Aktionen -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Aktionen" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,3,0,10"
+                                       Text="Alles, was das Original-SIDCHG zusätzlich anpasst. Abweichende Einträge sind mit ihrem Risiko gekennzeichnet." />
+
+                            <ItemsControl ItemsSource="{Binding Features}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#12171C" BorderBrush="#202830" BorderThickness="1"
+                                                CornerRadius="8" Padding="11" Margin="0,0,0,7">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <CheckBox Grid.Column="0" Margin="0,2,10,0"
+                                                          Style="{StaticResource OptionCheck}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,3,0,0" />
+                                                    <TextBlock Text="{Binding Details}" FontSize="10.5" Foreground="#6D7A87"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                </StackPanel>
+
+                                                <Border Grid.Column="2" Background="{Binding RiskBrush}" CornerRadius="4"
+                                                        Padding="7,2" VerticalAlignment="Top" Margin="10,0,0,0">
+                                                    <TextBlock Text="{Binding RiskText}" FontSize="10" FontWeight="SemiBold"
+                                                               Foreground="#0B0F13" TextWrapping="NoWrap" />
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Erweiterte Optionen -->
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Erweiterte Optionen" Style="{StaticResource SectionTitle}" />
+
+                            <TextBlock Text="Nach der Änderung" Style="{StaticResource Label}" />
+                            <ComboBox SelectedIndex="{Binding PostActionIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Neu starten (empfohlen)" />
+                                <ComboBoxItem Content="Herunterfahren" />
+                                <ComboBoxItem Content="Nichts tun" />
+                            </ComboBox>
+
+                            <CheckBox Style="{StaticResource OptionCheck}" Margin="0,12,0,0"
+                                      Content="Profil-Berechtigungen rekursiv ändern (empfohlen, dauert länger)"
+                                      IsChecked="{Binding RecursiveAcl, Mode=TwoWay}" />
+
+                            <CheckBox Style="{StaticResource OptionCheck}" Margin="0,8,0,0"
+                                      Content="Warnungen der Vorabprüfung überstimmen (nicht empfohlen)"
+                                      IsChecked="{Binding IgnoreWarnings, Mode=TwoWay}" />
+
+                            <TextBlock Text="Filter für moderne Apps (* = alle, -Name = ausschließen)" Style="{StaticResource Label}" />
+                            <TextBox Style="{StaticResource Input}"
+                                     Text="{Binding AppxFilters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Rechte Spalte -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Vorabprüfung" Style="{StaticResource SectionTitle}" />
+                        <ItemsControl ItemsSource="{Binding Preflight}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,7">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Icon}" Foreground="{Binding Brush}"
+                                                   FontWeight="Bold" Margin="0,0,9,0" VerticalAlignment="Top" />
+
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Message}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Ablauf" Style="{StaticResource SectionTitle}" />
+
+                        <ProgressBar IsIndeterminate="True" Margin="0,10,0,8"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+
+                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
+
+                        <ScrollViewer MaxHeight="230" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Steps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,7">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Icon}" Foreground="{Binding Brush}"
+                                                       FontWeight="Bold" Margin="0,0,9,0" VerticalAlignment="Top" />
+
+                                            <StackPanel Grid.Column="1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="{Binding Brush}"
+                                                               FontSize="11" Margin="7,1,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Message}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Protokoll" Style="{StaticResource SectionTitle}" Margin="0,0,0,8" />
+
+                        <TextBox Grid.Row="1" Style="{StaticResource Input}"
+                                 Text="{Binding Log, Mode=OneWay}"
+                                 IsReadOnly="True" AcceptsReturn="True"
+                                 FontSize="11.5" Background="#0A0E12" Foreground="#A9B7C2"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 TextWrapping="NoWrap"
+                                 TextChanged="LogBox_OnTextChanged" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Fußbereich -->
+        <Border Grid.Row="2" Background="#141A20" BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="0,1,0,0" Padding="22,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding FooterHint}" Style="{StaticResource Muted}"
+                           VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Sicherungsordner" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                            Command="{Binding OpenBackupFolderCommand}" />
+                    <Button Content="Protokoll speichern" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                            Command="{Binding SaveLogCommand}" />
+                    <Button Content="Analyse starten" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                            Command="{Binding AnalyzeCommand}" />
+                    <Button Content="Letzte Änderung zurücknehmen" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                            Command="{Binding RevertCommand}" />
+                    <Button Content="Änderungen anwenden" Style="{StaticResource DangerButton}"
+                            Command="{Binding ApplyCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
