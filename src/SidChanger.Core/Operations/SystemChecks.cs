@@ -6,12 +6,33 @@ using SidChanger.Core.Registry;
 
 namespace SidChanger.Core.Operations;
 
-/// <summary>Ergebnis einer Vorabprüfung.</summary>
+/// <summary>Art des Sprungziels einer Vorabprüfung.</summary>
+public enum PreflightActionKind
+{
+    /// <summary>Datei, Protokollhandler oder URI über die Shell öffnen (z. B. ms-settings:...).</summary>
+    Shell = 0,
+
+    /// <summary>Das Programm selbst mit Administratorrechten neu starten.</summary>
+    RestartElevated = 1,
+}
+
+/// <summary>Ein Sprungziel, das direkt zur betroffenen Windows-Einstellung führt.</summary>
+public sealed record PreflightAction(string Label, PreflightActionKind Kind, string FileName, string Arguments = "")
+{
+    public static PreflightAction Open(string label, string fileName, string arguments = "") =>
+        new(label, PreflightActionKind.Shell, fileName, arguments);
+
+    public static PreflightAction RestartAsAdministrator() =>
+        new("Als Administrator neu starten", PreflightActionKind.RestartElevated, string.Empty);
+}
+
+/// <summary>Ergebnis einer Vorabprüfung, optional mit Sprungziel in die Windows-Einstellungen.</summary>
 public sealed record PreflightCheck(
     string Name,
     bool Passed,
     bool Blocking,
-    string Message);
+    string Message,
+    PreflightAction? Action = null);
 
 /// <summary>
 /// Prüfungen vor der SID-Änderung (Rechte, Domäne, Virenscanner, ausstehende Updates,
@@ -40,7 +61,8 @@ public static class SystemChecks
         return TokenPrivileges.IsElevated()
             ? new PreflightCheck("Administratorrechte", true, true, "Das Programm läuft mit Administratorrechten.")
             : new PreflightCheck("Administratorrechte", false, true,
-                "Das Programm muss als Administrator gestartet werden (Rechtsklick → Als Administrator ausführen).");
+                "Das Programm muss als Administrator gestartet werden (Rechtsklick → Als Administrator ausführen).",
+                PreflightAction.RestartAsAdministrator());
     }
 
     private static PreflightCheck CheckDomain()
@@ -55,7 +77,8 @@ public static class SystemChecks
 
         return new PreflightCheck("Domänenmitgliedschaft", false, true,
             $"Der Computer ist Mitglied der Domäne \"{name}\". Nach der SID-Änderung verliert er die Domänenmitgliedschaft " +
-            "und muss neu beigetreten werden. Auf einem Domänencontroller ist eine SID-Änderung nicht möglich.");
+            "und muss neu beigetreten werden. Auf einem Domänencontroller ist eine SID-Änderung nicht möglich.",
+            PreflightAction.Open("Systemeigenschaften öffnen (Domäne)", "sysdm.cpl"));
     }
 
     private static PreflightCheck CheckAntivirus()
@@ -78,7 +101,8 @@ public static class SystemChecks
         {
             return new PreflightCheck("Virenscanner", false, true,
                 "Der Echtzeitschutz von Microsoft Defender ist aktiv. Er kann die SID-Änderung mittendrin abbrechen und das System beschädigen. " +
-                "Bitte den Echtzeitschutz deaktivieren (Defender → Viren- & Bedrohungsschutz → Einstellungen) und danach neu starten.");
+                "Bitte den Echtzeitschutz deaktivieren (Defender → Viren- & Bedrohungsschutz → Einstellungen) und danach neu starten.",
+                PreflightAction.Open("Defender-Einstellungen öffnen", "windowsdefender://threatsettings"));
         }
 
         return new PreflightCheck("Virenscanner", true, false,
@@ -110,7 +134,8 @@ public static class SystemChecks
             ? new PreflightCheck("Ausstehende Neustarts", true, false, "Keine ausstehenden Update- oder Neustartvorgänge gefunden.")
             : new PreflightCheck("Ausstehende Neustarts", false, true,
                 $"Es sind noch Vorgänge offen ({string.Join(", ", pending)}). Bitte zuerst neu starten und die Updates abschließen, " +
-                "sonst können sich Update und SID-Änderung gegenseitig stören.");
+                "sonst können sich Update und SID-Änderung gegenseitig stören.",
+                PreflightAction.Open("Windows Update öffnen", "ms-settings:windowsupdate"));
     }
 
     private static PreflightCheck CheckBitLocker()
@@ -127,7 +152,8 @@ public static class SystemChecks
         {
             return new PreflightCheck("BitLocker", false, true,
                 "BitLocker ist für das Systemlaufwerk aktiv. Bitte den Schutz vorher aussetzen " +
-                "(manage-bde -protectors -disable C: -RebootCount 1), damit die Änderung nicht durch die Verschlüsselung blockiert wird.");
+                "(manage-bde -protectors -disable C: -RebootCount 1), damit die Änderung nicht durch die Verschlüsselung blockiert wird.",
+                PreflightAction.Open("BitLocker-Verwaltung öffnen", "control.exe", "/name Microsoft.BitLockerDriveEncryption"));
         }
 
         return new PreflightCheck("BitLocker", true, false, "BitLocker ist nicht aktiv oder der Status ist unkritisch.");
@@ -145,7 +171,8 @@ public static class SystemChecks
         return running
             ? new PreflightCheck("UCPD-Treiber", false, false,
                 "Der UCPD-Treiber läuft. Er blockiert Teile der Registrierung. Empfehlung: Dienst deaktivieren und neu starten " +
-                "(das Programm kann das auf Wunsch vorbereiten).")
+                "(das Programm kann das auf Wunsch vorbereiten).",
+                PreflightAction.Open("Dienste öffnen", "services.msc"))
             : new PreflightCheck("UCPD-Treiber", true, false, "Der UCPD-Treiber ist gestoppt.");
     }
 
@@ -154,7 +181,8 @@ public static class SystemChecks
         var version = Environment.OSVersion.Version;
         return version.Build >= 7600
             ? new PreflightCheck("Windows-Version", true, false, $"Windows-Build {version.Build}.")
-            : new PreflightCheck("Windows-Version", false, true, $"Windows-Build {version.Build} wird nicht unterstützt (mindestens Windows 7 / Build 7600).");
+            : new PreflightCheck("Windows-Version", false, true, $"Windows-Build {version.Build} wird nicht unterstützt (mindestens Windows 7 / Build 7600).",
+                PreflightAction.Open("Windows Update öffnen", "ms-settings:windowsupdate"));
     }
 }
 

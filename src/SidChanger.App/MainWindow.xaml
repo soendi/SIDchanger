@@ -171,11 +171,8 @@
                             <TextBlock Text="Erweiterte Optionen" Style="{StaticResource SectionTitle}" />
 
                             <TextBlock Text="Nach der Änderung" Style="{StaticResource Label}" />
-                            <ComboBox SelectedIndex="{Binding PostActionIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="Neu starten (empfohlen)" />
-                                <ComboBoxItem Content="Herunterfahren" />
-                                <ComboBoxItem Content="Nichts tun" />
-                            </ComboBox>
+                            <ComboBox SelectedIndex="{Binding PostActionIndex, Mode=TwoWay}"
+                                      ItemsSource="{Binding PostActionOptions}" />
 
                             <CheckBox Style="{StaticResource OptionCheck}" Margin="0,12,0,0"
                                       Content="Profil-Berechtigungen rekursiv ändern (empfohlen, dauert länger)"
@@ -220,6 +217,11 @@
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding Message}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                                            <Button Style="{StaticResource LinkButton}" Margin="0,4,0,0"
+                                                    Content="{Binding ActionLabel}"
+                                                    Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.OpenPreflightLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}" />
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>

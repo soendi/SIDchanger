@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using SidChanger.Core.Operations;
 using SidChanger.Sid;
 
 namespace SidChanger.App.ViewModels;
@@ -6,12 +7,13 @@ namespace SidChanger.App.ViewModels;
 /// <summary>Ein Vorabprüfungs-Ergebnis für die Anzeige.</summary>
 public sealed class PreflightItem
 {
-    public PreflightItem(string name, bool passed, bool blocking, string message)
+    public PreflightItem(string name, bool passed, bool blocking, string message, PreflightAction? action = null)
     {
         Name = name;
         Passed = passed;
         Blocking = blocking;
         Message = message;
+        Action = action;
     }
 
     public string Name { get; }
@@ -21,6 +23,13 @@ public sealed class PreflightItem
     public bool Blocking { get; }
 
     public string Message { get; }
+
+    /// <summary>Direkter Sprung in die betroffene Windows-Einstellung, falls vorhanden.</summary>
+    public PreflightAction? Action { get; }
+
+    public bool HasAction => Action is not null;
+
+    public string ActionLabel => Action?.Label ?? string.Empty;
 
     public string Icon => Passed ? "✓" : Blocking ? "✕" : "!";
 

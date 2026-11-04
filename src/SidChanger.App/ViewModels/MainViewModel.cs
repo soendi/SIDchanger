@@ -6,6 +6,7 @@ using System.Windows;
 using Microsoft.Win32;
 using SidChanger.Core.Engine;
 using SidChanger.Core.Infrastructure;
+using SidChanger.Core.Operations;
 using SidChanger.Core.Registry;
 using SidChanger.Sid;
 
@@ -53,6 +54,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         RegenerateSidCommand = new RelayCommand(RegenerateSid);
+        OpenPreflightLinkCommand = new RelayCommand(OpenPreflightLink);
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => IsNotBusy && CanApply);
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, () => IsNotBusy && CanApply);
         RevertCommand = new AsyncRelayCommand(RevertAsync, () => IsNotBusy && HasLastRun);
@@ -69,6 +71,14 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<PreflightItem> Preflight { get; } = new();
 
     public ObservableCollection<StepItem> Steps { get; } = new();
+
+    /// <summary>Mögliche Aktionen nach der Änderung (Reihenfolge entspricht PostActionIndex).</summary>
+    public IReadOnlyList<string> PostActionOptions { get; } = new[]
+    {
+        "Neu starten (empfohlen)",
+        "Herunterfahren",
+        "Nichts tun",
+    };
 
     public string OldSid
     {
@@ -190,6 +200,8 @@ public sealed class MainViewModel : ObservableObject
     // --- Kommandos -----------------------------------------------------------
 
     public RelayCommand RegenerateSidCommand { get; }
+
+    public RelayCommand OpenPreflightLinkCommand { get; }
 
     public AsyncRelayCommand AnalyzeCommand { get; }
 
@@ -507,7 +519,7 @@ public sealed class MainViewModel : ObservableObject
         Preflight.Clear();
         foreach (var check in report.Checks)
         {
-            Preflight.Add(new PreflightItem(check.Name, check.Passed, check.Blocking, check.Message));
+            Preflight.Add(new PreflightItem(check.Name, check.Passed, check.Blocking, check.Message, check.Action));
         }
     }
 
@@ -522,6 +534,46 @@ public sealed class MainViewModel : ObservableObject
             NewComputerName.Equals(_computerName, StringComparison.OrdinalIgnoreCase))
         {
             NewComputerName = Environment.MachineName;
+        }
+    }
+
+    /// <summary>Öffnet das zu einer Vorabprüfung gehörende Fenster in Windows.</summary>
+    private void OpenPreflightLink(object? parameter)
+    {
+        if (parameter is not PreflightItem { Action: { } action })
+        {
+            return;
+        }
+
+        try
+        {
+            if (action.Kind == PreflightActionKind.RestartElevated)
+            {
+                var executable = Environment.ProcessPath;
+                if (string.IsNullOrEmpty(executable))
+                {
+                    MessageBox.Show(
+                        "Der Programmpfad ist unbekannt. Bitte das Programm über das Startmenü als Administrator öffnen.",
+                        "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, Verb = "runas" });
+                Application.Current?.Shutdown();
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = action.FileName,
+                Arguments = action.Arguments,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"„{action.Label}“ konnte nicht geöffnet werden:\n\n{ex.Message}",
+                "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
