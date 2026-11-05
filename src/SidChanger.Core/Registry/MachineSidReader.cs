@@ -13,15 +13,23 @@ public static class MachineSidReader
 
     /// <summary>
     /// Versucht die Maschinen-SID zu ermitteln. Reihenfolge:
-    /// 1) SAM-Wert "V" (autoritativ), 2) ProfileList (S-1-5-21-Schlüssel), 3) HKU.
+    /// 1) SAM-Wert "V" (autoritativ, aber nur als SYSTEM lesbar),
+    /// 2) LSA-Richtlinie (funktioniert mit Administratorrechten),
+    /// 3) ProfileList (S-1-5-21-Schlüssel), 4) HKU.
     /// </summary>
     public static MachineSid? TryRead(Action<string>? log, Action<string>? warn, out string source)
     {
         source = string.Empty;
 
-        if (TryFromSam(log, warn, out var sid))
+        if (TryFromSam(log, out var sid))
         {
             source = @"HKLM\SAM\SAM\Domains\Account\V";
+            return sid;
+        }
+
+        if (TryFromLsa(log, out sid))
+        {
+            source = "LSA-Richtlinie (Kontodomäne)";
             return sid;
         }
 
@@ -43,7 +51,7 @@ public static class MachineSidReader
         return null;
     }
 
-    private static bool TryFromSam(Action<string>? log, Action<string>? warn, out MachineSid? sid)
+    private static bool TryFromSam(Action<string>? log, out MachineSid? sid)
     {
         sid = null;
 
@@ -60,9 +68,30 @@ public static class MachineSidReader
         }
         catch (Exception ex)
         {
-            warn?.Invoke($"SAM nicht lesbar: {ex.Message}");
+            // Normal: die SAM darf nur SYSTEM lesen – auch Administratoren erhalten keinen Zugriff.
+            log?.Invoke($"SAM nicht lesbar (Zugriff hat nur SYSTEM): {ex.Message}");
             return false;
         }
+    }
+
+    private static bool TryFromLsa(Action<string>? log, out MachineSid? sid)
+    {
+        sid = null;
+
+        if (!LsaPolicy.TryReadAccountDomainSid(out var value, out var error) || value is null)
+        {
+            log?.Invoke("SID nicht über die LSA-Richtlinie lesbar: " + error);
+            return false;
+        }
+
+        if (!MachineSid.TryParse(value, out sid, out _))
+        {
+            log?.Invoke($"Die LSA-Richtlinie lieferte keine gültige Computer-SID ({value}).");
+            return false;
+        }
+
+        log?.Invoke("SID über die LSA-Richtlinie gelesen (die SAM ist nur für SYSTEM lesbar).");
+        return true;
     }
 
     private static bool TryFromProfileList(out MachineSid? sid)

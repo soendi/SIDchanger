@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using Microsoft.Win32;
+using SidChanger.App.Views;
 using SidChanger.Core.Engine;
 using SidChanger.Core.Infrastructure;
 using SidChanger.Core.Operations;
@@ -50,6 +51,7 @@ public sealed class MainViewModel : ObservableObject
 
         RegenerateSidCommand = new RelayCommand(RegenerateSid);
         OpenPreflightLinkCommand = new RelayCommand(OpenPreflightLink);
+        OpenPreflightManualCommand = new RelayCommand(OpenPreflightManual);
         PrepareMachineCommand = new AsyncRelayCommand(PrepareMachineAsync, () => IsNotBusy);
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => IsNotBusy && CanApply);
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, () => IsNotBusy && CanApply);
@@ -202,6 +204,8 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand RegenerateSidCommand { get; }
 
     public RelayCommand OpenPreflightLinkCommand { get; }
+
+    public RelayCommand OpenPreflightManualCommand { get; }
 
     public AsyncRelayCommand PrepareMachineCommand { get; }
 
@@ -525,7 +529,8 @@ public sealed class MainViewModel : ObservableObject
         Preflight.Clear();
         foreach (var check in report.Checks)
         {
-            Preflight.Add(new PreflightItem(check.Name, check.Passed, check.Blocking, check.Message, check.Action));
+            Preflight.Add(new PreflightItem(check.Name, check.Passed, check.Blocking, check.Message,
+                check.Action, check.ManualAction));
         }
     }
 
@@ -546,11 +551,23 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Öffnet das zu einer Vorabprüfung gehörende Fenster in Windows.</summary>
     private void OpenPreflightLink(object? parameter)
     {
-        if (parameter is not PreflightItem { Action: { } action })
+        if (parameter is PreflightItem { Action: { } action })
         {
-            return;
+            OpenPreflightAction(action);
         }
+    }
 
+    /// <summary>Öffnet den manuellen Weg über die Windows-Einstellungen.</summary>
+    private void OpenPreflightManual(object? parameter)
+    {
+        if (parameter is PreflightItem { ManualAction: { } action })
+        {
+            OpenPreflightAction(action);
+        }
+    }
+
+    private void OpenPreflightAction(PreflightAction action)
+    {
         try
         {
             if (action.Kind == PreflightActionKind.StopUcpd)
@@ -618,8 +635,19 @@ public sealed class MainViewModel : ObservableObject
                 ? "UCPD-Treiber angehalten."
                 : "UCPD-Treiber ist als deaktiviert eingetragen – nach dem Neustart bleibt er aus.";
 
-            MessageBox.Show(outcome.Message, "UCPD-Treiber", MessageBoxButton.OK,
-                outcome.Stopped || outcome.Disabled ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            if (outcome.Stopped || outcome.Disabled)
+            {
+                MessageBox.Show(outcome.Message, "UCPD-Treiber", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (MessageBox.Show(
+                         outcome.Message +
+                         "\n\nManuell: Dienste-Verwaltung (services.msc) → Dienst „UCPD“ anhalten und Starttyp auf " +
+                         "„Deaktiviert“ setzen.\n\nJetzt die Dienste-Verwaltung öffnen?",
+                         "UCPD-Treiber", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                         MessageBoxResult.Yes) == MessageBoxResult.Yes)
+            {
+                OpenPreflightAction(PreflightAction.Open("Dienste-Verwaltung öffnen", "services.msc"));
+            }
         }
         catch (Exception ex)
         {
@@ -701,8 +729,25 @@ public sealed class MainViewModel : ObservableObject
                 ? RunFixTitle(fix) + ": erledigt."
                 : RunFixTitle(fix) + ": nicht vollständig – bitte Meldung lesen.";
 
-            MessageBox.Show(result.Summary, RunFixTitle(fix), MessageBoxButton.OK,
-                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            var text = result.Summary;
+            var fallback = result.Success ? null : ManualFallback(fix);
+
+            if (fallback is { } manual)
+            {
+                text += "\n\nManuell:\n" + manual.Hint;
+
+                if (MessageBox.Show(text + "\n\nJetzt die passenden Windows-Einstellungen öffnen?",
+                        RunFixTitle(fix), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                        MessageBoxResult.Yes) == MessageBoxResult.Yes)
+                {
+                    OpenPreflightAction(manual.Action);
+                }
+            }
+            else
+            {
+                MessageBox.Show(text, RunFixTitle(fix), MessageBoxButton.OK,
+                    result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
         }
         catch (Exception ex)
         {
@@ -719,17 +764,19 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Bereitet die Maschine vor und bietet den Neustart an.</summary>
     private async Task PrepareMachineAsync()
     {
-        var answer = MessageBox.Show(
-            "Die Maschine wird für die SID-Änderung vorbereitet:\n\n" +
-            "  • BitLocker wird für die nächsten 3 Neustarts ausgesetzt\n" +
-            "  • Defender-Echtzeitschutz wird abgeschaltet (falls Windows es zulässt)\n" +
-            "  • UCPD-Treiber wird angehalten und deaktiviert\n" +
-            "  • laufende Dienste werden beendet\n\n" +
-            "Anschließend ist ein Neustart nötig. Das Programm öffnet sich nach der Anmeldung automatisch wieder.\n\n" +
-            "Wirklich vorbereiten?",
-            "Maschine vorbereiten", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        var options = new PrepareOptions(
+            SuspendBitLocker: true,
+            DisableDefender: true,
+            DisableUcpd: true,
+            StopServices: true,
+            RestartAfterLogin: true);
 
-        if (answer != MessageBoxResult.Yes)
+        var dialog = new PrepareMachineWindow(SystemPreparation.Describe(options))
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() != true)
         {
             return;
         }
@@ -739,13 +786,6 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            var options = new PrepareOptions(
-                SuspendBitLocker: true,
-                DisableDefender: true,
-                DisableUcpd: true,
-                StopServices: true,
-                RestartAfterLogin: true);
-
             var result = await Task.Run(() => SystemPreparation.Run(options, LogInfo, LogWarning)).ConfigureAwait(true);
             await RefreshPreflightAsync().ConfigureAwait(true);
 
@@ -814,6 +854,21 @@ public sealed class MainViewModel : ObservableObject
         return MessageBox.Show(text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
                == MessageBoxResult.Yes;
     }
+
+    /// <summary>Manueller Weg, wenn Windows einen Eingriff im Programm verweigert.</summary>
+    private static (PreflightAction Action, string Hint)? ManualFallback(SystemFix fix) => fix switch
+    {
+        SystemFix.DisableDefender => (PreflightAction.Open("Defender-Einstellungen öffnen", "ms-settings:windowsdefender"),
+            "Einstellungen → Datenschutz und Sicherheit → Windows-Sicherheit → Viren- & Bedrohungsschutz → " +
+            "„Einstellungen verwalten“: den Echtzeitschutz ausschalten. Ist der Manipulationsschutz aktiv, lässt sich " +
+            "das erst nach einem Neustart ändern."),
+        SystemFix.SuspendBitLocker => (PreflightAction.Open("BitLocker-Verwaltung öffnen", "control.exe",
+                "/name Microsoft.BitLockerDriveEncryption"),
+            "Systemsteuerung → BitLocker-Laufwerkverschlüsselung → für das Systemlaufwerk „Schutz aussetzen“."),
+        SystemFix.StopAllServices => (PreflightAction.Open("Dienste-Verwaltung öffnen", "services.msc"),
+            "Dienste-Verwaltung (services.msc): die laufenden Dienste von Hand beenden, kritische Systemdienste stehen lassen."),
+        _ => null,
+    };
 
     private static string RunFixTitle(SystemFix fix) => fix switch
     {

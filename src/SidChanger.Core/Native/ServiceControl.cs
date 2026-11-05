@@ -25,6 +25,7 @@ public static class ServiceControl
 {
     private const uint ScManagerConnect = 0x0001;
     private const uint ServiceQueryStatus = 0x0004;
+    private const uint ServiceStart = 0x0010;
     private const uint ServiceStop = 0x0020;
     private const uint ServiceChangeConfig = 0x0002;
     private const uint ServiceControlStop = 0x00000001;
@@ -32,6 +33,8 @@ public static class ServiceControl
     private const int ScStatusProcessInfo = 0;
     private const int ErrorServiceDoesNotExist = 1060;
     private const int ErrorServiceCannotAcceptCtrl = 1052;
+    private const int ErrorServiceDisabled = 1058;
+    private const int ErrorServiceAlreadyRunning = 1056;
     private const int ErrorAccessDenied = 5;
 
     /// <summary>Starttyp "deaktiviert" (HKLM\SYSTEM\CurrentControlSet\Services\&lt;Dienst&gt;\Start).</summary>
@@ -64,6 +67,10 @@ public static class ServiceControl
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ControlService(IntPtr service, uint control, out ServiceStatusProcess status);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "StartServiceW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool StartService(IntPtr service, int argumentCount, IntPtr[]? arguments);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -192,6 +199,78 @@ public static class ServiceControl
         }
     }
 
+    /// <summary>Startet einen Dienst bzw. Treiber und wartet, bis er läuft.</summary>
+    public static bool TryStart(string serviceName, TimeSpan timeout, out string detail)
+    {
+        var manager = OpenScManager(null, null, ScManagerConnect);
+        if (manager == IntPtr.Zero)
+        {
+            detail = $"Dienst-Manager konnte nicht geöffnet werden: {LastError()}";
+            return false;
+        }
+
+        try
+        {
+            var service = OpenService(manager, serviceName, ServiceStart | ServiceQueryStatus);
+            if (service == IntPtr.Zero)
+            {
+                var error = Marshal.GetLastWin32Error();
+                detail = error == ErrorServiceDoesNotExist
+                    ? $"Der Dienst \"{serviceName}\" ist nicht vorhanden."
+                    : $"Der Dienst \"{serviceName}\" konnte nicht zum Starten geöffnet werden: {DescribeError(error)}";
+                return false;
+            }
+
+            try
+            {
+                if (QueryState(service, out _) == ServiceRunState.Running)
+                {
+                    detail = "Der Dienst lief bereits.";
+                    return true;
+                }
+
+                if (!StartService(service, 0, null))
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    if (error == ErrorServiceAlreadyRunning)
+                    {
+                        detail = "Der Dienst lief bereits.";
+                        return true;
+                    }
+
+                    detail = error == ErrorServiceDisabled
+                        ? "Der Dienst ist auf \"deaktiviert\" gesetzt und kann nicht gestartet werden."
+                        : $"Starten abgelehnt: {DescribeError(error)}";
+                    return false;
+                }
+
+                var deadline = DateTime.UtcNow + timeout;
+                while (DateTime.UtcNow < deadline)
+                {
+                    var state = QueryState(service, out _);
+                    if (state == ServiceRunState.Running)
+                    {
+                        detail = "Der Dienst läuft.";
+                        return true;
+                    }
+
+                    Thread.Sleep(200);
+                }
+
+                detail = $"Der Dienst lief nach {timeout.TotalSeconds:0} Sekunden nicht an.";
+                return false;
+            }
+            finally
+            {
+                CloseServiceHandle(service);
+            }
+        }
+        finally
+        {
+            CloseServiceHandle(manager);
+        }
+    }
+
     /// <summary>Setzt den Starttyp eines Dienstes (z. B. 4 = deaktiviert).</summary>
     public static bool TrySetStartType(string serviceName, uint startType, out string detail)
     {
@@ -283,6 +362,7 @@ public static class ServiceControl
         ErrorAccessDenied => "Zugriff verweigert (Administratorrechte erforderlich).",
         ErrorServiceCannotAcceptCtrl => "Der Dienst nimmt diesen Befehl im laufenden Betrieb nicht an.",
         ErrorServiceDoesNotExist => "Der Dienst ist nicht vorhanden.",
+        ErrorServiceDisabled => "Der Dienst ist deaktiviert.",
         _ => $"Windows-Fehler {error}.",
     };
 }

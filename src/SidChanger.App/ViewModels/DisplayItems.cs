@@ -7,13 +7,20 @@ namespace SidChanger.App.ViewModels;
 /// <summary>Ein Vorabprüfungs-Ergebnis für die Anzeige.</summary>
 public sealed class PreflightItem
 {
-    public PreflightItem(string name, bool passed, bool blocking, string message, PreflightAction? action = null)
+    public PreflightItem(
+        string name,
+        bool passed,
+        bool blocking,
+        string message,
+        PreflightAction? action = null,
+        PreflightAction? manualAction = null)
     {
         Name = name;
         Passed = passed;
         Blocking = blocking;
         Message = message;
         Action = action;
+        ManualAction = manualAction;
     }
 
     public string Name { get; }
@@ -30,6 +37,13 @@ public sealed class PreflightItem
     public bool HasAction => Action is not null;
 
     public string ActionLabel => Action?.Label ?? string.Empty;
+
+    /// <summary>Manueller Weg über die Windows-Einstellungen, wenn der direkte Eingriff nicht klappt.</summary>
+    public PreflightAction? ManualAction { get; }
+
+    public bool HasManualAction => ManualAction is not null;
+
+    public string ManualLabel => ManualAction?.Label ?? string.Empty;
 
     public string Icon => Passed ? "✓" : Blocking ? "✕" : "!";
 

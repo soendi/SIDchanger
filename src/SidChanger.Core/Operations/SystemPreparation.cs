@@ -14,6 +14,9 @@ public sealed record PrepareOptions(
 /// <summary>Ergebnis der Vorbereitung.</summary>
 public sealed record PrepareResult(bool Success, bool RebootRequired, string Summary, IReadOnlyList<string> Steps);
 
+/// <summary>Ein Punkt, den das Vorbereiten der Maschine ausführt.</summary>
+public sealed record PrepareStepInfo(string Title, string Description);
+
 /// <summary>
 /// „Maschine vorbereiten": setzt die Elemente zurück, die eine SID-Änderung blockieren
 /// (BitLocker, Defender-Echtzeitschutz, UCPD-Treiber, laufende Dienste) und sorgt dafür,
@@ -21,6 +24,53 @@ public sealed record PrepareResult(bool Success, bool RebootRequired, string Sum
 /// </summary>
 public static class SystemPreparation
 {
+    /// <summary>
+    /// Beschreibt die Punkte, die <see cref="Run"/> ausführen wird – damit die Bestätigung
+    /// im Programm genau das anzeigt, was danach wirklich passiert.
+    /// </summary>
+    public static IReadOnlyList<PrepareStepInfo> Describe(PrepareOptions options)
+    {
+        var steps = new List<PrepareStepInfo>();
+
+        if (options.SuspendBitLocker)
+        {
+            steps.Add(new PrepareStepInfo("BitLocker für die nächsten Neustarts aussetzen",
+                $"Der Schutz des Systemlaufwerks wird für die nächsten {Math.Clamp(options.RebootCount, 1, 15)} " +
+                "Neustarts ausgesetzt. Entschlüsselt wird nichts; danach schaltet sich der Schutz automatisch wieder ein."));
+        }
+
+        if (options.DisableDefender)
+        {
+            steps.Add(new PrepareStepInfo("Defender-Echtzeitschutz abschalten",
+                "Echtzeit-, Verhaltens-, Skript- und Archivprüfung werden abgeschaltet und per Richtlinie deaktiviert. " +
+                "Blockiert der Manipulationsschutz von Windows, meldet das Programm das anschließend ehrlich."));
+        }
+
+        if (options.DisableUcpd)
+        {
+            steps.Add(new PrepareStepInfo("UCPD-Treiber anhalten und deaktivieren",
+                "Der User Choice Protection Driver wird angehalten und auf „deaktiviert“ gesetzt, damit er keine " +
+                "Registrierungsänderungen mehr blockiert."));
+        }
+
+        if (options.StopServices)
+        {
+            steps.Add(new PrepareStepInfo("Laufende Dienste beenden",
+                "Alle laufenden Dienste außer den kritischen Systemdiensten werden beendet. Nach dem Neustart starten " +
+                "sie je nach Starttyp wieder; die vom Programm beendeten Dienste werden am Ende der SID-Änderung erneut " +
+                "gestartet."));
+        }
+
+        if (options.RestartAfterLogin)
+        {
+            steps.Add(new PrepareStepInfo("Programm nach der Anmeldung wieder öffnen",
+                "Das Programm wird per RunOnce für die nächste Anmeldung eingetragen, damit es nach dem Neustart " +
+                "automatisch wieder offen ist."));
+        }
+
+        return steps;
+    }
+
     /// <summary>Führt alle gewählten Vorbereitungsschritte aus.</summary>
     public static PrepareResult Run(PrepareOptions options, Action<string> log, Action<string>? warn)
     {

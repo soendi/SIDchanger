@@ -41,13 +41,15 @@ public static class SystemFixes
 $ErrorActionPreference = 'Continue'
 $skip = @('RpcSs','DcomLaunch','RpcEptMapper','LSM','Power','PlugPlay','SamSs','EventLog','ProfSvc','Winmgmt','nsi','BrokerInfrastructure','SystemEventsBroker','Schedule','gpsvc','CryptSvc')
 $stopped = 0; $failed = 0; $skipped = 0
+$names = New-Object System.Collections.ArrayList
 foreach ($service in Get-Service) {
   if ($service.Status -ne 'Running') { continue }
   if ($skip -contains $service.Name) { $skipped++; continue }
-  try { Stop-Service -Name $service.Name -Force -ErrorAction Stop; $stopped++ }
+  try { Stop-Service -Name $service.Name -Force -ErrorAction Stop; $stopped++; [void]$names.Add($service.Name) }
   catch { $failed++ }
 }
 Write-Output ""SUMME $stopped $failed $skipped""
+Write-Output ""NAMES "" + ($names -join '|')
 Write-Output ""REST $((Get-Service | Where-Object { $_.Status -eq 'Running' }).Count)""
 ";
 
@@ -59,6 +61,13 @@ Write-Output ""REST $((Get-Service | Where-Object { $_.Status -eq 'Running' }).C
         var rest = ReadNumber(output, "REST", 0);
 
         log($"Dienste: {stopped} beendet, {failed} nicht beendbar, {skipped} kritische Dienste geschützt, {rest} laufen noch.");
+
+        var names = ReadNames(output);
+        if (names.Count > 0)
+        {
+            StoppedServicesStore.Add(names);
+            log($"{names.Count} beendete Dienste für den Neustart am Ende der Änderung vorgemerkt.");
+        }
 
         if (stopped == 0 && failed == 0)
         {
@@ -159,6 +168,24 @@ try {{
             $"Der BitLocker-Schutz ist für die nächsten {count} Neustarts ausgesetzt. Windows startet ohne " +
             "Wiederherstellungsschlüssel-Abfrage; entschlüsselt wird nichts. Nach den Neustarts schaltet sich der " +
             "Schutz automatisch wieder ein.");
+    }
+
+    private static IReadOnlyList<string> ReadNames(string output)
+    {
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!line.StartsWith("NAMES", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return line["NAMES".Length..]
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return Array.Empty<string>();
     }
 
     private static int ReadNumber(string output, string key, int index)

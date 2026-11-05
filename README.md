@@ -8,14 +8,32 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.4-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.4/SidWechsler-1.0.0.4-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.4/SidWechsler-1.0.0.4-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.4>
+  [`SidWechsler-1.0.0.5-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.5/SidWechsler-1.0.0.5-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.5/SidWechsler-1.0.0.5-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.5>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.5
+
+* **Wiederherstellungspunkt automatisch:** Vor der Änderung wird ein Windows-Wiederherstellungspunkt
+  angelegt und am Ende abgeschlossen. Ist die Systemwiederherstellung abgeschaltet oder nicht
+  vorhanden, meldet das Programm das ehrlich, statt den Punkt zu verschweigen.
+* **Dienste im Abschluss:** Dienste unter lokalen Benutzerkonten werden geprüft (mit Hinweis, wenn
+  das Konto nicht mehr auflösbar ist), und die zuvor vom Programm beendeten Dienste werden wieder
+  gestartet.
+* **„Maschine vorbereiten“ mit Bestätigungsfenster:** Ein eigenes Fenster listet alle geplanten
+  Eingriffe (BitLocker, Defender-Echtzeitschutz, UCPD-Treiber, Dienste, Autostart) und bietet
+  „Abbrechen“/„OK“.
+* **Manuelle Wege in die Windows-Einstellungen:** Jede Vorabprüfung hat zusätzlich zum
+  Programm-Eingriff einen Link in die passende Einstellung; scheitert ein Eingriff, führt die
+  Meldung direkt dorthin (Defender, BitLocker, Dienste, UCPD).
+* **SID-Ermittlung über die LSA-Richtlinie:** Die Computer-SID wird mit Administratorrechten über
+  `LsaQueryInformationPolicy` gelesen. Die SAM ist absichtlich nur für `SYSTEM` lesbar – die
+  bisherige Warnung „SAM nicht lesbar“ entfällt, der Weg über die SAM bleibt als erster Versuch.
 
 ### Version 1.0.0.4
 
@@ -71,6 +89,7 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 | Aktion | Ort / Wirkung | Standard |
 |---|---|---|
 | Computer-SID ersetzen | `HKLM\SAM\SAM` und `HKLM\SECURITY`: alle Vorkommen der 24-Byte-Domänen-SID werden durch eine neue Zufalls-SID ersetzt, anschließend wird die neue SID aus `Domains\Account\V` zurückgelesen und verifiziert | ✅ |
+| Wiederherstellungspunkt | Windows-Systemwiederherstellung: Punkt vor der Änderung anlegen und am Ende abschließen; meldet ehrlich, wenn sie abgeschaltet oder nicht vorhanden ist | ✅ |
 | Benutzerprofile umschlüsseln | `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\S-1-5-21-…` wird auf die neue SID umbenannt | ✅ |
 | NTFS-Rechte der Profile | Besitzer, DACL und SACL der Profilordner werden von der alten auf die neue SID umgeschrieben (optional rekursiv) | ✅ |
 | Taskplaner | SID in Aufgaben-XML (`System32\Tasks`) und im `TaskCache` | ✅ |
@@ -93,8 +112,9 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 | Standard-Apps | Dateizuordnungen des Benutzers zurücksetzen | ❌ |
 | Computername / -beschreibung | `Rename-Computer` plus Registry-Werte, Platzhalter `?` und `*` | ❌ |
 
-**Reihenfolge eines Laufs:** Vorbereitung (Sicherungen) → Änderung → Abschluss
-(Vault/DPAPI wiederherstellen) → optionaler Neustart/Herunterfahren.
+**Reihenfolge eines Laufs:** Vorbereitung (Wiederherstellungspunkt, Sicherungen) → Änderung →
+Abschluss (Vault/DPAPI wiederherstellen, Wiederherstellungspunkt abschließen, Dienste prüfen und
+zuvor beendete Dienste wieder starten) → optionaler Neustart/Herunterfahren.
 
 ---
 
@@ -108,6 +128,9 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
   und ein vollständiges Protokoll (speicherbar).
 * **Schaltflächen:** Analyse (ändert nichts), Änderungen anwenden (mit Bestätigungsdialog),
   letzte Änderung zurücknehmen, Sicherungsordner öffnen.
+* **„Maschine vorbereiten“** öffnet vor dem Ausführen ein eigenes Fenster, das alle geplanten
+  Eingriffe auflistet (BitLocker, Defender-Echtzeitschutz, UCPD-Treiber, laufende Dienste,
+  Autostart) – mit „Abbrechen“ und „OK“.
 
 ---
 

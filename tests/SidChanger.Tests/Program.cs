@@ -296,6 +296,14 @@ var completedRequest = new ChangeRequest
 };
 Check("ergänzter Auftrag meldet keine fehlenden Begleiter", completedRequest.Validate().Count == 0);
 
+Check("Wiederherstellungspunkt ist standardmäßig an",
+    FeatureCatalog.IsDefaultOn(ChangeFeature.RestorePoint));
+Check("Standardauftrag enthält den Wiederherstellungspunkt",
+    (FeatureCatalog.DefaultFeatures & ChangeFeature.RestorePoint) == ChangeFeature.RestorePoint);
+Check("Wiederherstellungspunkt ist eine eigene, abwählbare Aktion",
+    FeatureDependencies.Has(FeatureCatalog.DefaultFeatures, ChangeFeature.RestorePoint) &&
+    !FeatureDependencies.Has(FeatureDependencies.EnsureSidCompanions(ChangeFeature.MachineSid), ChangeFeature.RestorePoint));
+
 Console.WriteLine();
 Console.WriteLine("UCPD-Politik");
 

@@ -226,6 +226,12 @@
                                                     Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}"
                                                     Command="{Binding DataContext.OpenPreflightLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}" />
+                                            <Button Style="{StaticResource LinkButton}" Margin="0,3,0,0"
+                                                    Foreground="#8FA3B5"
+                                                    Content="{Binding ManualLabel}"
+                                                    Visibility="{Binding HasManualAction, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.OpenPreflightManualCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}" />
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>

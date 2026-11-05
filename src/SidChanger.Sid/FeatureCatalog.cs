@@ -24,6 +24,7 @@ public static class FeatureCatalog
 {
     /// <summary>Alle Aktionen, die standardmäßig aktiviert sind.</summary>
     public const ChangeFeature DefaultFeatures =
+        ChangeFeature.RestorePoint |
         ChangeFeature.MachineSid |
         ChangeFeature.ProfileList |
         ChangeFeature.ProfileAcl |
@@ -41,6 +42,12 @@ public static class FeatureCatalog
 
     public static IReadOnlyList<FeatureInfo> All { get; } = new List<FeatureInfo>
     {
+        new(ChangeFeature.RestorePoint,
+            "Wiederherstellungspunkt anlegen",
+            "Legt vor der Änderung einen Windows-Wiederherstellungspunkt an, damit sich der Rechner notfalls über die Systemwiederherstellung zurückrollen lässt.",
+            RiskLevel.Niedrig, true, true, false,
+            "Windows-Systemwiederherstellung (srclient.dll)"),
+
         new(ChangeFeature.MachineSid,
             "Computer-SID ersetzen",
             "Ersetzt die lokale Computer-SID (S-1-5-21-A-B-C) in den Registrierungsdateien SAM und SECURITY durch eine neue Zufalls-SID.",

@@ -46,6 +46,7 @@ public static class StepCatalog
     public const string VaultBackupsKey = "vault-backups";
     public const string DpapiBackupsKey = "dpapi-backups";
     public const string DpapiRootsKey = "dpapi-roots";
+    public const string RestorePointSequenceKey = "restore-point-sequence";
 
     private const string WuPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate";
 
@@ -63,6 +64,17 @@ public static class StepCatalog
         }
 
         // --- Vorbereitung ----------------------------------------------------
+        Add(new ChangeStep
+        {
+            Feature = ChangeFeature.RestorePoint,
+            Title = "Wiederherstellungspunkt anlegen",
+            Phase = StepPhase.Prepare,
+            Run = CreateRestorePointAsync,
+            Analyze = _ => Task.FromResult<string?>(SystemRestore.IsDisabled()
+                ? "Die Systemwiederherstellung ist abgeschaltet – es kann kein Wiederherstellungspunkt angelegt werden."
+                : "Ein Windows-Wiederherstellungspunkt wird vor der Änderung angelegt."),
+        });
+
         Add(new ChangeStep
         {
             Feature = ChangeFeature.UcpdDisable,
@@ -346,6 +358,25 @@ public static class StepCatalog
             Phase = StepPhase.Finalize,
             Run = RestoreVaultAsync,
             Analyze = _ => Task.FromResult<string?>("Der gesicherte Windows Vault wird zurückgespielt."),
+        });
+
+        Add(new ChangeStep
+        {
+            Feature = ChangeFeature.RestorePoint,
+            Title = "Wiederherstellungspunkt abschließen",
+            Phase = StepPhase.Finalize,
+            Run = FinishRestorePointAsync,
+            Analyze = _ => Task.FromResult<string?>("Der begonnene Wiederherstellungspunkt wird abgeschlossen."),
+        });
+
+        Add(new ChangeStep
+        {
+            Feature = ChangeFeature.MachineSid,
+            Title = "Dienste nach der Änderung prüfen",
+            Phase = StepPhase.Finalize,
+            Run = CheckServicesAsync,
+            Analyze = _ => Task.FromResult<string?>(
+                "Dienste unter lokalen Benutzerkonten werden geprüft; zuvor beendete Dienste werden wieder gestartet."),
         });
 
         return steps;
@@ -924,6 +955,95 @@ public static class StepCatalog
             return StepResult.Ok(ChangeFeature.DpapiEfsKeys, title,
                 $"{result.Renamed} Ordner umbenannt, {result.Replacements} SID-Vorkommen in {result.Files} Dateien ersetzt, {result.AclObjects} ACLs angepasst.",
                 result.Files + result.Renamed);
+        }, ct);
+    }
+
+    // --- Wiederherstellungspunkt und Dienste --------------------------------
+
+    private static Task<StepResult> CreateRestorePointAsync(ChangeContext ctx, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            const ChangeFeature feature = ChangeFeature.RestorePoint;
+            const string title = "Wiederherstellungspunkt anlegen";
+
+            var description = $"SID-Wechsler: vor SID-Änderung ({ctx.OldSid?.Value ?? "aktuelle SID unbekannt"})";
+            var outcome = SystemRestore.Create(description, ctx.Info, ctx.Warn);
+
+            if (!outcome.Created)
+            {
+                return StepResult.Warn(feature, title, outcome.Message);
+            }
+
+            ctx.Bag[RestorePointSequenceKey] = outcome.SequenceNumber;
+            return StepResult.Ok(feature, title, outcome.Message, 1);
+        }, ct);
+    }
+
+    private static Task<StepResult> FinishRestorePointAsync(ChangeContext ctx, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            const ChangeFeature feature = ChangeFeature.RestorePoint;
+            const string title = "Wiederherstellungspunkt abschließen";
+
+            var sequence = ctx.Bag.TryGetValue(RestorePointSequenceKey, out var value) && value is long number
+                ? number
+                : 0;
+
+            if (sequence <= 0)
+            {
+                return StepResult.NotAvailable(feature, title, "Es war kein Wiederherstellungspunkt offen.");
+            }
+
+            var outcome = SystemRestore.Finish(sequence, ctx.Info, ctx.Warn);
+            return outcome.Created
+                ? StepResult.Ok(feature, title, outcome.Message, 1)
+                : StepResult.Warn(feature, title, outcome.Message);
+        }, ct);
+    }
+
+    private static Task<StepResult> CheckServicesAsync(ChangeContext ctx, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            const ChangeFeature feature = ChangeFeature.MachineSid;
+            const string title = "Dienste nach der Änderung prüfen";
+
+            var local = ServiceAudit.FindLocalAccountServices();
+            var (started, failed) = ServiceAudit.RestartStoppedServices(ctx.Info, ctx.Warn, ct);
+
+            var parts = new List<string>();
+
+            if (local.Count == 0)
+            {
+                parts.Add("Keine Dienste unter lokalen Benutzerkonten gefunden.");
+            }
+            else
+            {
+                var broken = local.Where(s => s.Problem is not null).ToList();
+                parts.Add($"{local.Count} Dienst(e) laufen unter einem lokalen Konto: " +
+                          string.Join(", ", local.Take(8).Select(s => $"{s.Name} ({s.Account})")) +
+                          (local.Count > 8 ? " …" : string.Empty) + ".");
+
+                if (broken.Count > 0)
+                {
+                    parts.Add($"{broken.Count} davon hat ein nicht mehr auflösbares Konto " +
+                              $"({string.Join(", ", broken.Take(5).Select(s => s.Name))}) – bitte Konto und Dienst prüfen.");
+                }
+            }
+
+            if (started + failed > 0)
+            {
+                parts.Add($"{started} zuvor beendete(r) Dienst(e) wieder gestartet" +
+                          (failed > 0 ? $", {failed} nicht gestartet (siehe Protokoll)." : "."));
+            }
+
+            var message = string.Join(" ", parts);
+
+            return local.Any(s => s.Problem is not null) || failed > 0
+                ? StepResult.Warn(feature, title, message)
+                : StepResult.Ok(feature, title, message, started);
         }, ct);
     }
 

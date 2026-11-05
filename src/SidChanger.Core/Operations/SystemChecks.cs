@@ -45,13 +45,17 @@ public sealed record PreflightAction(
         new(label, PreflightActionKind.RunFix, string.Empty, string.Empty, fix);
 }
 
-/// <summary>Ergebnis einer Vorabprüfung, optional mit Sprungziel in die Windows-Einstellungen.</summary>
+/// <summary>
+/// Ergebnis einer Vorabprüfung: <paramref name="Action"/> ist der direkte Eingriff,
+/// <paramref name="ManualAction"/> der manuelle Weg in die Windows-Einstellungen.
+/// </summary>
 public sealed record PreflightCheck(
     string Name,
     bool Passed,
     bool Blocking,
     string Message,
-    PreflightAction? Action = null);
+    PreflightAction? Action = null,
+    PreflightAction? ManualAction = null);
 
 /// <summary>
 /// Prüfungen vor der SID-Änderung (Rechte, Domäne, Virenscanner, ausstehende Updates,
@@ -114,7 +118,9 @@ public static class SystemChecks
         if (exitCode != 0 || lines.Count == 0 || lines.Contains("UNBEKANNT"))
         {
             return new PreflightCheck("Virenscanner", true, false,
-                "Der Status von Microsoft Defender konnte nicht ermittelt werden. Bitte den Echtzeitschutz vor der Änderung manuell deaktivieren.");
+                "Der Status von Microsoft Defender konnte nicht ermittelt werden. Bitte den Echtzeitschutz vor der Änderung manuell deaktivieren.",
+                null,
+                PreflightAction.Open("Defender-Einstellungen öffnen (manuell)", "ms-settings:windowsdefender"));
         }
 
         if (lines.Contains("AN"))
@@ -122,7 +128,8 @@ public static class SystemChecks
             return new PreflightCheck("Virenscanner", false, true,
                 "Der Echtzeitschutz von Microsoft Defender ist aktiv. Er kann die SID-Änderung mittendrin abbrechen und das System beschädigen. " +
                 "Das Programm kann ihn direkt abschalten – verweigert Windows das (Manipulationsschutz), bleibt nur der Weg über die Defender-Einstellungen.",
-                PreflightAction.RunSystemFix("Echtzeitschutz abschalten", SystemFix.DisableDefender));
+                PreflightAction.RunSystemFix("Echtzeitschutz abschalten", SystemFix.DisableDefender),
+                PreflightAction.Open("Defender-Einstellungen öffnen (manuell)", "ms-settings:windowsdefender"));
         }
 
         return new PreflightCheck("Virenscanner", true, false,
@@ -173,7 +180,9 @@ public static class SystemChecks
             return new PreflightCheck("BitLocker", false, true,
                 "BitLocker ist für das Systemlaufwerk aktiv und blockiert die Änderung. Der Schutz lässt sich für die nächsten " +
                 "Neustarts aussetzen – Windows startet dann ohne Schlüsselabfrage, entschlüsselt wird nichts.",
-                PreflightAction.RunSystemFix("BitLocker für Neustart aussetzen", SystemFix.SuspendBitLocker));
+                PreflightAction.RunSystemFix("BitLocker für Neustart aussetzen", SystemFix.SuspendBitLocker),
+                PreflightAction.Open("BitLocker-Verwaltung öffnen (manuell)", "control.exe",
+                    "/name Microsoft.BitLockerDriveEncryption"));
         }
 
         return new PreflightCheck("BitLocker", true, false, "BitLocker ist nicht aktiv oder der Status ist unkritisch.");
@@ -199,7 +208,8 @@ public static class SystemChecks
             : new PreflightCheck("Laufende Dienste", false, false,
                 $"{count} Dienste laufen. Für die SID-Änderung sollten möglichst wenige Dienste aktiv sein, " +
                 "sonst bleiben Registry- und Dateisperren bestehen.",
-                PreflightAction.RunSystemFix("Alle Dienste stoppen", SystemFix.StopAllServices));
+                PreflightAction.RunSystemFix("Alle Dienste stoppen", SystemFix.StopAllServices),
+                PreflightAction.Open("Dienste-Verwaltung öffnen (manuell)", "services.msc"));
     }
 
     private static PreflightCheck CheckUcpd()
@@ -208,7 +218,10 @@ public static class SystemChecks
         var (passed, message) = UcpdPolicy.Evaluate(snapshot);
 
         return new PreflightCheck("UCPD-Treiber", passed, false, message,
-            snapshot.Running ? PreflightAction.StopUcpdDriver() : null);
+            snapshot.Running ? PreflightAction.StopUcpdDriver() : null,
+            snapshot.Running
+                ? PreflightAction.Open("Dienste-Verwaltung öffnen (manuell)", "services.msc")
+                : null);
     }
 
     private static PreflightCheck CheckModernWindows()

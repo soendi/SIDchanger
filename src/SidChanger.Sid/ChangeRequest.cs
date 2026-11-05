@@ -77,6 +77,9 @@ public enum ChangeFeature
 
     /// <summary>UCPD-Treiber (User Choice Protection Driver) anhalten und deaktivieren.</summary>
     UcpdDisable = 1 << 23,
+
+    /// <summary>Windows-Wiederherstellungspunkt vor der Änderung anlegen.</summary>
+    RestorePoint = 1 << 24,
 }
 
 /// <summary>Was nach Abschluss der Änderungen passieren soll.</summary>
