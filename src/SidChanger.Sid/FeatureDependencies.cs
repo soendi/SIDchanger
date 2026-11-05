@@ -20,15 +20,28 @@ public static class FeatureDependencies
         };
 
     /// <summary>
+    /// Pflichtschritte jedes SID-Wechsels: ohne sie finden bestehende Benutzerprofile und
+    /// geplante Aufgaben nach der Änderung ihre Benutzer nicht mehr.
+    /// </summary>
+    public const ChangeFeature SidCompanions =
+        ChangeFeature.ProfileList | ChangeFeature.ProfileAcl | ChangeFeature.TaskScheduler;
+
+    /// <summary>
     /// Pflichtbegleiter: wird die Aktion gewählt, müssen diese Aktionen mitlaufen,
     /// damit das System danach wieder funktioniert.
     /// </summary>
     public static IReadOnlyDictionary<ChangeFeature, ChangeFeature> Companions { get; } =
         new Dictionary<ChangeFeature, ChangeFeature>
         {
-            [ChangeFeature.MachineSid] =
-                ChangeFeature.ProfileList | ChangeFeature.ProfileAcl | ChangeFeature.TaskScheduler,
+            [ChangeFeature.MachineSid] = SidCompanions,
         };
+
+    /// <summary>
+    /// Ergänzt eine Auswahl um die Pflichtschritte des SID-Wechsels. Damit bleiben
+    /// Profile, Profilrechte und Taskplaner auch bei einem von Hand gebauten Auftrag gesetzt.
+    /// </summary>
+    public static ChangeFeature EnsureSidCompanions(ChangeFeature selected) =>
+        Has(selected, ChangeFeature.MachineSid) ? selected | SidCompanions : selected;
 
     /// <summary>Prüft, ob eine einzelne Aktion in einer Auswahl enthalten ist.</summary>
     public static bool Has(ChangeFeature selected, ChangeFeature feature) => (selected & feature) == feature;

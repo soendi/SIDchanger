@@ -48,10 +48,6 @@ public sealed class MainViewModel : ObservableObject
             feature.PropertyChanged += (_, e) => OnFeatureChanged(feature, e);
         }
 
-        // Startzustand: abhängige Haken setzen und sperren.
-        ApplySelection(Features.Where(f => f.IsSelected)
-            .Aggregate(ChangeFeature.None, (all, f) => all | f.Feature));
-
         RegenerateSidCommand = new RelayCommand(RegenerateSid);
         OpenPreflightLinkCommand = new RelayCommand(OpenPreflightLink);
         PrepareMachineCommand = new AsyncRelayCommand(PrepareMachineAsync, () => IsNotBusy);
@@ -60,6 +56,10 @@ public sealed class MainViewModel : ObservableObject
         RevertCommand = new AsyncRelayCommand(RevertAsync, () => IsNotBusy && HasLastRun);
         OpenBackupFolderCommand = new RelayCommand(OpenBackupFolder);
         SaveLogCommand = new RelayCommand(SaveLog, () => _logBuilder.Length > 0);
+
+        // Startzustand: abhängige Haken setzen und sperren (braucht die Kommandos oben).
+        ApplySelection(Features.Where(f => f.IsSelected)
+            .Aggregate(ChangeFeature.None, (all, f) => all | f.Feature));
 
         RegenerateSid();
     }
@@ -265,6 +265,10 @@ public sealed class MainViewModel : ObservableObject
 
             return null;
         }
+
+        // Ein SID-Wechsel zieht ProfilList, Profilrechte und Taskplaner zwingend mit.
+        features = FeatureDependencies.EnsureSidCompanions(features);
+        ApplySelection(features);
 
         MachineSid? newSid = null;
         if (features.HasFlag(ChangeFeature.MachineSid))
@@ -875,6 +879,14 @@ public sealed class MainViewModel : ObservableObject
 
         _logBuilder.AppendLine(entry.ToString());
         Log = _logBuilder.ToString();
+
+        // Zusätzlich dauerhaft nach C:\ProgramData\SidChanger\Logs schreiben.
+        AppLog.Write(entry.Level switch
+        {
+            LogLevel.Warning => "WARN",
+            LogLevel.Error => "ERROR",
+            _ => "INFO",
+        }, entry.Message);
     }
 
     private void AppendStep(StepResult result)
@@ -890,10 +902,11 @@ public sealed class MainViewModel : ObservableObject
 
     private void RaiseCommandStates()
     {
-        PrepareMachineCommand.RaiseCanExecuteChanged();
-        AnalyzeCommand.RaiseCanExecuteChanged();
-        ApplyCommand.RaiseCanExecuteChanged();
-        RevertCommand.RaiseCanExecuteChanged();
-        SaveLogCommand.RaiseCanExecuteChanged();
+        // Beim Aufbau des ViewModels sind die Kommandos noch nicht gesetzt.
+        PrepareMachineCommand?.RaiseCanExecuteChanged();
+        AnalyzeCommand?.RaiseCanExecuteChanged();
+        ApplyCommand?.RaiseCanExecuteChanged();
+        RevertCommand?.RaiseCanExecuteChanged();
+        SaveLogCommand?.RaiseCanExecuteChanged();
     }
 }

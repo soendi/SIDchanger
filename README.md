@@ -8,14 +8,28 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.3-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.3/SidWechsler-1.0.0.3-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.3/SidWechsler-1.0.0.3-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.3>
+  [`SidWechsler-1.0.0.4-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.4/SidWechsler-1.0.0.4-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.4/SidWechsler-1.0.0.4-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.4>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.4
+
+* **Startabsturz behoben:** Das Hauptfenster erschien nicht mehr, weil beim Aufbau der Oberfläche
+  auf noch nicht erzeugte Kommandos zugegriffen wurde („Exception has been thrown by the target of
+  an invocation"). Die Kommandos entstehen jetzt vor der ersten Auswahlprüfung.
+* **Protokoll unter `C:\ProgramData\SidChanger\Logs`:** Das Programm schreibt eine Tagesdatei
+  `sid-wechsler-JJJJMMTT.log` mit Start, Ablauf und unbehandelten Fehlern samt inneren Ausnahmen
+  und Aufruflisten. Ist der Ordner nicht beschreibbar, wird `%TEMP%\SidChanger\Logs` verwendet.
+* **Fehlerdialog nennt die Ursache:** Statt der WPF-Verpackung wird die eigentliche Ausnahme mit
+  Fehlerart und dem Pfad der Protokolldatei angezeigt – der bisherige Hinweis auf ein leeres
+  Protokollverzeichnis entfällt.
+* **Pflicht-Haken fest verankert:** ProfilList, Profilrechte und Taskplaner werden bei jedem
+  SID-Wechsel im Auftrag selbst ergänzt – auch dann, wenn der Haken in der Oberfläche fehlt.
 
 ### Version 1.0.0.3
 

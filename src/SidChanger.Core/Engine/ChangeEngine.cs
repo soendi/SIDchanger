@@ -97,6 +97,9 @@ public sealed class ChangeEngine
     /// <summary>Analysiert den Auftrag, ohne etwas zu verändern.</summary>
     public async Task<IReadOnlyList<StepResult>> AnalyzeAsync(ChangeRequest request, CancellationToken cancellationToken = default)
     {
+        // Ein SID-Wechsel bringt Profile, Profilrechte und Taskplaner immer mit.
+        request.Features = FeatureDependencies.EnsureSidCompanions(request.Features);
+
         var errors = request.Validate();
         if (errors.Count > 0)
         {
@@ -152,6 +155,10 @@ public sealed class ChangeEngine
     /// <summary>Führt die Änderung aus.</summary>
     public async Task<ChangeResult> ApplyAsync(ChangeRequest request, CancellationToken cancellationToken = default)
     {
+        // Ein SID-Wechsel bringt Profile, Profilrechte und Taskplaner immer mit – auch wenn
+        // der Auftrag nicht aus der Oberfläche kommt.
+        request.Features = FeatureDependencies.EnsureSidCompanions(request.Features);
+
         var validation = request.Validate();
         if (validation.Count > 0)
         {

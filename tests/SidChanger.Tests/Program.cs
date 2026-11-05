@@ -279,6 +279,23 @@ var sidWithoutCompanions = new ChangeRequest
 Check("SID-Wechsel ohne Begleiter wird gemeldet",
     string.Join(" ", sidWithoutCompanions.Validate()).Contains("erfordert zusätzlich"));
 
+Check("Pflichtschritte werden im Auftrag immer ergänzt",
+    FeatureDependencies.EnsureSidCompanions(ChangeFeature.MachineSid) ==
+    FeatureDependencies.Expand(ChangeFeature.MachineSid));
+Check("ohne SID-Wechsel ändert sich die Auswahl nicht",
+    FeatureDependencies.EnsureSidCompanions(ChangeFeature.MachineGuid) == ChangeFeature.MachineGuid);
+Check("Pflichtschritte bleiben auch bei abgewählten Haken gesetzt",
+    FeatureDependencies.EnsureSidCompanions(ChangeFeature.MachineSid | ChangeFeature.WsusId) ==
+    FeatureDependencies.Expand(ChangeFeature.MachineSid | ChangeFeature.WsusId));
+
+var completedRequest = new ChangeRequest
+{
+    Features = FeatureDependencies.EnsureSidCompanions(ChangeFeature.MachineSid),
+    NewSid = new MachineSid(4, 5, 6),
+    GenerateRandomSid = false,
+};
+Check("ergänzter Auftrag meldet keine fehlenden Begleiter", completedRequest.Validate().Count == 0);
+
 Console.WriteLine();
 Console.WriteLine("UCPD-Politik");
 
