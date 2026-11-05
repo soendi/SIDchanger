@@ -5,6 +5,7 @@
         Width="680" Height="580" MinWidth="620" MinHeight="460"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"
         Background="{StaticResource WindowBackground}"
+        Icon="/Assets/logo.png"
         FontFamily="Segoe UI" FontSize="13"
         TextOptions.TextFormattingMode="Display">
 
@@ -17,7 +18,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Maschine vorbereiten" FontSize="19" FontWeight="Bold" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Image Source="/Assets/logo.png" Width="28" Height="28" Margin="0,0,12,0"
+                   VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock Text="Maschine vorbereiten" FontSize="19" FontWeight="Bold"
+                       VerticalAlignment="Center" />
+        </StackPanel>
 
         <TextBlock Grid.Row="1" Style="{StaticResource Muted}" Margin="0,6,0,14"
                    Text="Das Programm führt jetzt die folgenden Punkte aus. Windows kann einzelne Punkte verweigern – was nicht geklappt hat, steht anschließend im Protokoll und in der Meldung." />
@@ -48,7 +54,7 @@
         </Border>
 
         <TextBlock Grid.Row="3" Style="{StaticResource Muted}" Margin="0,12,0,0"
-                   Text="Danach fragt das Programm, ob der Rechner sofort neu gestartet wird (15 Sekunden Vorlauf). Ein Abbruch hier ändert noch nichts." />
+                   Text="Danach fragt das Programm, ob der Rechner sofort neu gestartet wird (15 Sekunden Vorlauf). Sagt Windows den Neustart nicht an, löst das Programm ihn direkt über die Windows-API aus. Startmenü und Taskleiste bleiben bedienbar. Ein Abbruch hier ändert noch nichts." />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Abbrechen" Style="{StaticResource GhostButton}" Margin="0,0,10,0"

@@ -804,8 +804,20 @@ public sealed class MainViewModel : ObservableObject
 
             if (restart == MessageBoxResult.Yes)
             {
-                SystemPreparation.ScheduleReboot(15, LogInfo);
-                StatusText = "Neustart in 15 Sekunden angefordert.";
+                var (rebootAccepted, rebootDetail) = SystemPreparation.ScheduleReboot(15, LogInfo, LogWarning);
+
+                if (rebootAccepted)
+                {
+                    StatusText = "Neustart angefordert.";
+                    AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, rebootDetail));
+                }
+                else
+                {
+                    StatusText = "Neustart konnte nicht ausgelöst werden.";
+                    AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, rebootDetail));
+                    MessageBox.Show(rebootDetail, "Neustart nicht möglich",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
         catch (Exception ex)
@@ -839,7 +851,8 @@ public sealed class MainViewModel : ObservableObject
         var (title, text) = fix switch
         {
             SystemFix.StopAllServices => ("Alle Dienste stoppen",
-                "Alle laufenden Dienste werden beendet – außer den kritischen Systemdiensten.\n\n" +
+                "Alle laufenden Dienste werden beendet – außer den kritischen System- und Shell-Diensten " +
+                "(Startmenü und Taskleiste bleiben bedienbar).\n\n" +
                 "Netzwerk, Drucker und weitere Dienste sind danach aus; nach einem Neustart starten sie je nach Starttyp wieder.\n\n" +
                 "Wirklich alle Dienste stoppen?"),
             SystemFix.DisableDefender => ("Echtzeitschutz abschalten",

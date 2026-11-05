@@ -58,7 +58,8 @@ public static class SystemPreparation
             steps.Add(new PrepareStepInfo("Laufende Dienste beenden",
                 "Alle laufenden Dienste außer den kritischen Systemdiensten werden beendet. Nach dem Neustart starten " +
                 "sie je nach Starttyp wieder; die vom Programm beendeten Dienste werden am Ende der SID-Änderung erneut " +
-                "gestartet."));
+                "gestartet. Startmenü und Taskleiste bleiben bedienbar: die Dienste dafür (u. a. StateRepository und " +
+                "AppXSvc) werden nicht angehalten."));
         }
 
         if (options.RestartAfterLogin)
@@ -132,11 +133,13 @@ public static class SystemPreparation
         return new PrepareResult(problems.Count == 0, true, summary, steps);
     }
 
-    /// <summary>Startet den Rechner in der angegebenen Zeit neu.</summary>
-    public static void ScheduleReboot(int seconds, Action<string> log)
+    /// <summary>
+    /// Startet den Rechner in der angegebenen Zeit neu und meldet, ob Windows den Auftrag
+    /// tatsächlich angenommen hat (inklusive Rückfallweg über die Windows-API).
+    /// </summary>
+    public static (bool Success, string Detail) ScheduleReboot(int seconds, Action<string> log, Action<string>? warn = null)
     {
-        log($"Neustart in {seconds} Sekunden angefordert.");
-        Shell.Run("shutdown.exe", $"/r /t {seconds} /f /c \"SID-Wechsler: Neustart nach der Vorbereitung\"", 20_000);
+        return RebootService.RequestRestart(seconds, "SID-Wechsler: Neustart nach der Vorbereitung", log, warn);
     }
 
     /// <summary>Trägt das Programm für die nächste Anmeldung ein (RunOnce).</summary>

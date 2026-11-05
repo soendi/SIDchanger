@@ -418,15 +418,21 @@ Write-Output ""SUMME $ok $fail""
             return;
         }
 
-        var args = action == PostChangeAction.Reboot
-            ? $"/r /t {seconds} /f /c \"SID-Wechsler: Neustart zum Abschluss der SID-Änderung\""
-            : $"/s /t {seconds} /f /c \"SID-Wechsler: Herunterfahren nach der SID-Änderung\"";
+        if (action == PostChangeAction.Reboot)
+        {
+            RebootService.RequestRestart(seconds, "SID-Wechsler: Neustart zum Abschluss der SID-Änderung", log);
+            return;
+        }
 
-        log(action == PostChangeAction.Reboot
-            ? $"Neustart in {seconds} Sekunden angefordert."
-            : $"Herunterfahren in {seconds} Sekunden angefordert.");
+        log($"Herunterfahren in {seconds} Sekunden angefordert.");
 
-        Shell.Run("shutdown.exe", args, 20_000);
+        var (exitCode, output) = Shell.Run("shutdown.exe",
+            $"/s /t {seconds} /f /c \"SID-Wechsler: Herunterfahren nach der SID-Änderung\"", 30_000);
+
+        if (exitCode != 0)
+        {
+            log($"Windows hat das Herunterfahren nicht angenommen (Exitcode {exitCode}): {output}");
+        }
     }
 
     private static void SetString(

@@ -4,6 +4,7 @@
         Title="SID-Wechsler – Computer-SID und Computername ändern"
         Height="860" Width="1220" MinHeight="660" MinWidth="1040"
         Background="{StaticResource WindowBackground}"
+        Icon="/Assets/logo.png"
         FontFamily="Segoe UI" FontSize="13"
         WindowStartupLocation="CenterScreen"
         TextOptions.TextFormattingMode="Display">
@@ -24,10 +25,16 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="SID-Wechsler" FontSize="21" FontWeight="Bold" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,3,0,0"
-                               Text="Computer-SID, Computername und Gerätekennungen ändern – ohne Neuinstallation" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Image Source="/Assets/logo.png" Width="40" Height="40" Margin="0,0,14,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="SID-Wechsler" FontSize="21" FontWeight="Bold" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,3,0,0"
+                                   Text="Computer-SID, Computername und Gerätekennungen ändern – ohne Neuinstallation" />
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">

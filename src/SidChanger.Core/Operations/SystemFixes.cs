@@ -39,7 +39,8 @@ public static class SystemFixes
     {
         const string script = @"
 $ErrorActionPreference = 'Continue'
-$skip = @('RpcSs','DcomLaunch','RpcEptMapper','LSM','Power','PlugPlay','SamSs','EventLog','ProfSvc','Winmgmt','nsi','BrokerInfrastructure','SystemEventsBroker','Schedule','gpsvc','CryptSvc')
+$skip = @('RpcSs','DcomLaunch','RpcEptMapper','LSM','Power','PlugPlay','SamSs','EventLog','ProfSvc','Winmgmt','nsi','BrokerInfrastructure','SystemEventsBroker','Schedule','gpsvc','CryptSvc',
+  'StateRepository','AppXSvc','TileDataModelSrv','UserManager','TextInputManagementService','TokenBroker','ShellHWDetection','Themes','AudioSrv','CDPSvc','WpnService','CoreMessagingRegistrar','EventSystem')
 $stopped = 0; $failed = 0; $skipped = 0
 $names = New-Object System.Collections.ArrayList
 foreach ($service in Get-Service) {
@@ -60,7 +61,7 @@ Write-Output ""REST $((Get-Service | Where-Object { $_.Status -eq 'Running' }).C
         var skipped = ReadNumber(output, "SUMME", 2);
         var rest = ReadNumber(output, "REST", 0);
 
-        log($"Dienste: {stopped} beendet, {failed} nicht beendbar, {skipped} kritische Dienste geschützt, {rest} laufen noch.");
+        log($"Dienste: {stopped} beendet, {failed} nicht beendbar, {skipped} kritische und Shell-Dienste geschützt, {rest} laufen noch.");
 
         var names = ReadNames(output);
         if (names.Count > 0)

@@ -1,5 +1,7 @@
 # SID-Wechsler
 
+<img src="src/SidChanger.App/Assets/logo.png" width="112" height="112" alt="SID-Wechsler-Logo">
+
 Grafisches Windows-Werkzeug (C# / WPF, deutsch) zum Ändern der **lokalen Computer-SID**,
 des Computernamens und der übrigen Gerätekennungen – ohne Windows neu zu installieren.
 Es bildet die Funktionen von [SIDCHG](https://www.stratesave.com/html/sidchg.html) in einer
@@ -8,14 +10,28 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.6-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.6/SidWechsler-1.0.0.6-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.6/SidWechsler-1.0.0.6-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.6>
+  [`SidWechsler-1.0.0.7-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.7/SidWechsler-1.0.0.7-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.7/SidWechsler-1.0.0.7-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.7>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.7
+
+* **Neustart wird nicht mehr still verschluckt:** „Maschine vorbereiten“ prüft jetzt Exitcode und
+  Ausgabe von `shutdown.exe`. Nimmt Windows den Neustart nicht an, löst das Programm ihn über die
+  Windows-API (`ExitWindowsEx`) aus und meldet im Fehlerfall den Windows-Fehler samt Ausweg
+  (Strg+Alt+Entf → Neu starten). Zusätzlich erzwingt ein Sicherheitsnetz den Neustart, wenn
+  Windows einen angekündigten Neustart später verwirft.
+* **Startmenü bleibt bedienbar:** „Alle Dienste stoppen“ lässt die Dienste laufen, die Startmenü,
+  Taskleiste und Anmeldung tragen (u. a. `StateRepository`, `AppXSvc`, `UserManager`,
+  `TextInputManagementService`). Bisher konnte die Vorbereitung die Shell lahmlegen – ohne
+  Startmenü war dann kein Neustart mehr möglich.
+* **Eigenes Logo:** ID-Karte auf dunkler Kachel als Multi-Größen-Icon in der EXE (Explorer,
+  Taskleiste, Startmenü), in der Titelleiste beider Fenster und im Kopfbereich des Hauptfensters.
 
 ### Version 1.0.0.6
 
