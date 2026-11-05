@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Win32;
 using SidChanger.Core.Native;
 using SidChanger.Core.Registry;
+using SidChanger.Sid;
 
 namespace SidChanger.Core.Operations;
 
@@ -14,6 +15,9 @@ public enum PreflightActionKind
 
     /// <summary>Das Programm selbst mit Administratorrechten neu starten.</summary>
     RestartElevated = 1,
+
+    /// <summary>Der UCPD-Treiber wird direkt im Programm angehalten und deaktiviert.</summary>
+    StopUcpd = 2,
 }
 
 /// <summary>Ein Sprungziel, das direkt zur betroffenen Windows-Einstellung führt.</summary>
@@ -24,6 +28,9 @@ public sealed record PreflightAction(string Label, PreflightActionKind Kind, str
 
     public static PreflightAction RestartAsAdministrator() =>
         new("Als Administrator neu starten", PreflightActionKind.RestartElevated, string.Empty);
+
+    public static PreflightAction StopUcpdDriver() =>
+        new("UCPD jetzt anhalten", PreflightActionKind.StopUcpd, string.Empty);
 }
 
 /// <summary>Ergebnis einer Vorabprüfung, optional mit Sprungziel in die Windows-Einstellungen.</summary>
@@ -161,19 +168,11 @@ public static class SystemChecks
 
     private static PreflightCheck CheckUcpd()
     {
-        var (exitCode, output) = Shell.Run("sc.exe", "query UCPD", 15_000);
-        if (exitCode != 0)
-        {
-            return new PreflightCheck("UCPD-Treiber", true, false, "Der UCPD-Treiber ist nicht vorhanden (ältere Windows-Version).");
-        }
+        var snapshot = UcpdController.Read();
+        var (passed, message) = UcpdPolicy.Evaluate(snapshot);
 
-        var running = output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
-        return running
-            ? new PreflightCheck("UCPD-Treiber", false, false,
-                "Der UCPD-Treiber läuft. Er blockiert Teile der Registrierung. Empfehlung: Dienst deaktivieren und neu starten " +
-                "(das Programm kann das auf Wunsch vorbereiten).",
-                PreflightAction.Open("Dienste öffnen", "services.msc"))
-            : new PreflightCheck("UCPD-Treiber", true, false, "Der UCPD-Treiber ist gestoppt.");
+        return new PreflightCheck("UCPD-Treiber", passed, false, message,
+            snapshot.Running ? PreflightAction.StopUcpdDriver() : null);
     }
 
     private static PreflightCheck CheckModernWindows()

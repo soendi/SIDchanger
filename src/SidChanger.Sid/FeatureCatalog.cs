@@ -36,6 +36,7 @@ public static class FeatureCatalog
         ChangeFeature.Dhcpv6Duid |
         ChangeFeature.ActionCenter |
         ChangeFeature.VaultPreserve |
+        ChangeFeature.UcpdDisable |
         ChangeFeature.SearchReset;
 
     public static IReadOnlyList<FeatureInfo> All { get; } = new List<FeatureInfo>
@@ -129,6 +130,12 @@ public static class FeatureCatalog
             "Meldet alle anderen angemeldeten Sitzungen ab, damit keine Profildateien gesperrt sind. Wird als erster Schritt ausgeführt.",
             RiskLevel.Mittel, false, true, false,
             "Terminaldienste (WTS)"),
+
+        new(ChangeFeature.UcpdDisable,
+            "UCPD-Treiber anhalten und deaktivieren",
+            "Hält den \"User Choice Protection Driver\" an und setzt ihn auf deaktiviert, damit er keine Registrierungsänderungen blockiert. Windows-Updates können ihn wieder aktivieren.",
+            RiskLevel.Mittel, true, true, true,
+            "Dienst UCPD (Kernel-Treiber), Starttyp"),
 
         new(ChangeFeature.DpapiEfsKeys,
             "DPAPI-/EFS-Schlüsselmaterial anpassen (experimentell)",

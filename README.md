@@ -8,14 +8,26 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.1-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.1/SidWechsler-1.0.0.1-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.1/SidWechsler-1.0.0.1-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.1>
+  [`SidWechsler-1.0.0.2-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.2/SidWechsler-1.0.0.2-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.2/SidWechsler-1.0.0.2-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.2>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.2
+
+* **UCPD wird vom Programm selbst angehalten.** Läuft der `UCPD`-Treiber (User Choice
+  Protection Driver), gibt es in der Vorabprüfung den Link „UCPD jetzt anhalten“: Der Treiber
+  wird über den Dienst-Manager gestoppt und auf `deaktiviert` gesetzt. Der Verweis in die
+  Dienste-Verwaltung entfällt.
+* Neue, standardmäßig aktive Aktion **„UCPD-Treiber anhalten und deaktivieren“**, die als
+  erster Vorbereitungsschritt läuft und im Ablaufprotokoll auftaucht. Lässt sich ein
+  Kernel-Treiber im Betrieb nicht stoppen, bleibt er deaktiviert und ist nach dem Neustart aus.
+* Der Release-Workflow bricht ab, wenn eine Datei über 5 MB im Repository liegt – damit
+  landet kein Build-Artefakt mehr im Git-Verlauf.
 
 ### Version 1.0.0.1
 
@@ -35,6 +47,7 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 | Benutzerprofile umschlüsseln | `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\S-1-5-21-…` wird auf die neue SID umbenannt | ✅ |
 | NTFS-Rechte der Profile | Besitzer, DACL und SACL der Profilordner werden von der alten auf die neue SID umgeschrieben (optional rekursiv) | ✅ |
 | Taskplaner | SID in Aufgaben-XML (`System32\Tasks`) und im `TaskCache` | ✅ |
+| UCPD-Treiber | Dienst `UCPD` (User Choice Protection Driver) wird angehalten und auf „deaktiviert“ gesetzt | ✅ |
 | WSUS-ID | `SusClientId`, `PingID` neu, `SusClientIdValidation` gelöscht | ✅ |
 | MachineGuid | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` | ✅ |
 | Machine ID (SQM) | `HKLM\SOFTWARE\Microsoft\SQMClient\MachineId` | ✅ |

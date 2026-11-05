@@ -53,21 +53,6 @@ public static class AdministrativeActions
         SetString(RegistryHive.LocalMachine, LanmanPath, "srvcomment", description, log, warn);
     }
 
-    /// <summary>Deaktiviert den UCPD-Treiber (wirkt nach dem nächsten Neustart).</summary>
-    public static bool DisableUcpd(Action<string> log, Action<string>? warn)
-    {
-        var (exitCode, output) = Shell.Run("sc.exe", "config UCPD start= disabled", 30_000);
-
-        if (exitCode == 0)
-        {
-            log("UCPD-Treiber auf \"deaktiviert\" gesetzt (wirkt nach dem Neustart).");
-            return true;
-        }
-
-        warn?.Invoke($"UCPD konnte nicht deaktiviert werden: {output}");
-        return false;
-    }
-
     /// <summary>Meldet alle anderen angemeldeten Benutzer ab.</summary>
     public static int LogoffOtherSessions(Action<string> log, Action<string>? warn, CancellationToken cancellationToken)
     {

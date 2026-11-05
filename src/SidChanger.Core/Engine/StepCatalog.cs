@@ -65,6 +65,16 @@ public static class StepCatalog
         // --- Vorbereitung ----------------------------------------------------
         Add(new ChangeStep
         {
+            Feature = ChangeFeature.UcpdDisable,
+            Title = "UCPD-Treiber anhalten",
+            Phase = StepPhase.Prepare,
+            Run = RunUcpdAsync,
+            Analyze = ctx => Task.FromResult<string?>(
+                $"UCPD: {UcpdPolicy.Evaluate(UcpdController.Read()).Message}"),
+        });
+
+        Add(new ChangeStep
+        {
             Feature = ChangeFeature.VaultPreserve,
             Title = "Windows Vault sichern",
             Phase = StepPhase.Prepare,
@@ -339,6 +349,26 @@ public static class StepCatalog
         });
 
         return steps;
+    }
+
+    // --- UCPD-Treiber -------------------------------------------------------
+
+    private static Task<StepResult> RunUcpdAsync(ChangeContext ctx, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            const ChangeFeature feature = ChangeFeature.UcpdDisable;
+            const string title = "UCPD-Treiber anhalten";
+
+            var outcome = UcpdController.StopAndDisable(ctx.Info, ctx.Warn);
+
+            if (outcome.Stopped)
+            {
+                return StepResult.Ok(feature, title, outcome.Message, 1);
+            }
+
+            return StepResult.Warn(feature, title, outcome.Message);
+        }, ct);
     }
 
     // --- Maschinen-SID ------------------------------------------------------

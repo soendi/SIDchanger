@@ -74,6 +74,9 @@ public enum ChangeFeature
 
     /// <summary>Benutzer abmelden, damit keine Dateien gesperrt sind.</summary>
     LogoffOtherUsers = 1 << 22,
+
+    /// <summary>UCPD-Treiber (User Choice Protection Driver) anhalten und deaktivieren.</summary>
+    UcpdDisable = 1 << 23,
 }
 
 /// <summary>Was nach Abschluss der Änderungen passieren soll.</summary>

@@ -547,6 +547,12 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
+            if (action.Kind == PreflightActionKind.StopUcpd)
+            {
+                StopUcpd();
+                return;
+            }
+
             if (action.Kind == PreflightActionKind.RestartElevated)
             {
                 var executable = Environment.ProcessPath;
@@ -574,6 +580,45 @@ public sealed class MainViewModel : ObservableObject
         {
             MessageBox.Show($"„{action.Label}“ konnte nicht geöffnet werden:\n\n{ex.Message}",
                 "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Hält den UCPD-Treiber direkt aus der Vorabprüfung heraus an und deaktiviert ihn.</summary>
+    private async void StopUcpd()
+    {
+        IsBusy = true;
+        StatusText = "UCPD-Treiber wird angehalten ...";
+
+        try
+        {
+            var outcome = await Task.Run(() => UcpdController.StopAndDisable(
+                    message => AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, message)),
+                    message => AppendLog(new LogEntry(DateTime.Now, LogLevel.Warning, message))))
+                .ConfigureAwait(true);
+
+            var report = await _engine
+                .RunPreflightAsync(new ChangeRequest { IgnorePreflightWarnings = IgnoreWarnings })
+                .ConfigureAwait(true);
+
+            ApplyPreflight(report);
+
+            StatusText = outcome.Stopped
+                ? "UCPD-Treiber angehalten."
+                : "UCPD-Treiber ist als deaktiviert eingetragen – nach dem Neustart bleibt er aus.";
+
+            MessageBox.Show(outcome.Message, "UCPD-Treiber", MessageBoxButton.OK,
+                outcome.Stopped || outcome.Disabled ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            StatusText = "UCPD-Treiber konnte nicht angehalten werden.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, "UCPD: " + ex.Message));
+            MessageBox.Show("Der UCPD-Treiber konnte nicht angehalten werden:\n\n" + ex.Message,
+                "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 

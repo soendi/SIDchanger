@@ -232,6 +232,34 @@ Check("alle Titel sind deutsch und nicht leer",
     FeatureCatalog.All.All(i => i.Title.Length > 3 && i.Description.Length > 10));
 
 Console.WriteLine();
+Console.WriteLine("UCPD-Politik");
+
+var ucpdRunning = new UcpdSnapshot(true, true, false);
+var (ucpdPassed, ucpdMessage) = UcpdPolicy.Evaluate(ucpdRunning);
+
+Check("laufender UCPD ist ein Hinweis, keine Sperre", !ucpdPassed && ucpdMessage.Contains("anhalten"));
+Check("fehlender UCPD ist unkritisch", UcpdPolicy.Evaluate(new UcpdSnapshot(false, false, false)).Passed);
+Check("gestoppter und deaktivierter UCPD ist in Ordnung", UcpdPolicy.Evaluate(new UcpdSnapshot(true, false, true)).Passed);
+Check("gestoppter, aber aktiver Starttyp wird erwähnt",
+    UcpdPolicy.Evaluate(new UcpdSnapshot(true, false, false)).Message.Contains("Starttyp"));
+
+var ucpdStopped = UcpdPolicy.DescribeStop(ucpdRunning, true, true);
+Check("angehalten und deaktiviert braucht keinen Neustart",
+    ucpdStopped.Stopped && ucpdStopped.Disabled && !ucpdStopped.RebootRequired);
+
+var ucpdReboot = UcpdPolicy.DescribeStop(ucpdRunning, false, true);
+Check("nur deaktiviert verlangt einen Neustart",
+    !ucpdReboot.Stopped && ucpdReboot.Disabled && ucpdReboot.RebootRequired);
+
+var ucpdFailed = UcpdPolicy.DescribeStop(ucpdRunning, false, false);
+Check("ohne Erfolg bleibt ein erklärender Hinweis",
+    !ucpdFailed.Stopped && !ucpdFailed.Disabled && ucpdFailed.Message.Contains("Administrator"));
+
+var ucpdMissing = UcpdPolicy.DescribeStop(new UcpdSnapshot(false, false, false), false, false);
+Check("nicht vorhandener Treiber meldet keine Änderung",
+    !ucpdMissing.Stopped && !ucpdMissing.Disabled && ucpdMissing.Message.Contains("nicht vorhanden"));
+
+Console.WriteLine();
 Console.WriteLine(new string('-', 60));
 Console.WriteLine($"{passes} Tests bestanden, {failures.Count} fehlgeschlagen.");
 

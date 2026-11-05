@@ -6,7 +6,7 @@ on:
       tag:
         description: "Vorhandener Release-Tag, an den die EXE angehaengt wird"
         required: true
-        default: "v1.0.0.1"
+        default: "v1.0.0.2"
   push:
     tags:
       - "v*"
@@ -20,6 +20,20 @@ jobs:
     steps:
       - name: Quellcode holen
         uses: actions/checkout@v4
+
+      # Verteilte Builds gehoeren in den Release, nicht ins Repository.
+      - name: Repository-Groesse pruefen
+        shell: pwsh
+        run: |
+          $limit = 5MB
+          $big = git ls-files | ForEach-Object { Get-Item -LiteralPath $_ -ErrorAction SilentlyContinue } |
+            Where-Object { $_ -and $_.Length -gt $limit }
+          if ($big) {
+            $big | ForEach-Object {
+              Write-Host "::error::Zu grosse Datei im Repository: $($_.FullName) ($([math]::Round($_.Length / 1MB, 1)) MB) - bitte vor dem Release entfernen"
+            }
+            exit 1
+          }
 
       - name: .NET 8 installieren
         uses: actions/setup-dotnet@v4
@@ -45,7 +59,7 @@ jobs:
         run: |
           [xml]$proj = Get-Content src/SidChanger.App/SidChanger.App.csproj
           $version = ($proj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
-          if (-not $version) { $version = "1.0.0.1" }
+          if (-not $version) { $version = "1.0.0.2" }
           $asset = "SidWechsler-$version-win-x64.exe"
           Move-Item "dist/win-x64/SidWechsler.exe" "dist/win-x64/$asset"
           $hash = (Get-FileHash "dist/win-x64/$asset" -Algorithm SHA256).Hash.ToLower()
@@ -73,6 +87,10 @@ jobs:
             WSUS-Client-ID, MachineGuid, Machine-ID, Device-ID, MSDTC-CID, DHCPv6-DUID,
             SQL-Server-master, Vault/DPAPI, OneDrive- und App-Kennungen, Profil-ACLs,
             Taskplaner-Aufgaben.
+
+            **UCPD-Treiber:** UCPD laeuft und blockiert Registrierungsaenderungen? Das Programm
+            haelt ihn selbst an und setzt ihn auf deaktiviert - ein Klick in der Vorabpruefung
+            genuegt, oder die Aktion "UCPD-Treiber anhalten und deaktivieren" im Lauf.
 
             **Vor jeder Aenderung** wird eine Sicherung unter
             `C:\\ProgramData\\SidChanger\\Backups` angelegt; die letzte Aenderung laesst sich
