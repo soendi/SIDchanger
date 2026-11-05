@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using SidChanger.Core.Engine;
 using SidChanger.Core.Operations;
 using SidChanger.Sid;
 
@@ -52,6 +53,32 @@ public sealed class PreflightItem
         : Blocking
             ? new SolidColorBrush(Color.FromRgb(0xE0, 0x6C, 0x60))
             : new SolidColorBrush(Color.FromRgb(0xE0, 0xA0, 0x30));
+}
+
+/// <summary>Ein geplanter Analyse-Schritt für die Bestätigung vor dem Start.</summary>
+public sealed class AnalysisStepItem
+{
+    public AnalysisStepItem(StepOutline outline)
+    {
+        Title = outline.Title;
+        Description = string.IsNullOrWhiteSpace(outline.Hint) ? "Wird geprüft." : outline.Hint;
+        StartsPhase = outline.StartsPhase;
+        PhaseLabel = outline.Phase switch
+        {
+            StepPhase.Prepare => "VORBEREITUNG · SICHERUNGEN UND VORARBEITEN",
+            StepPhase.Finalize => "ABSCHLUSS · NACHARBEITEN",
+            _ => "ÄNDERUNG · DAS EIGENTLICHE",
+        };
+    }
+
+    public string Title { get; }
+
+    public string Description { get; }
+
+    /// <summary>Überschrift der Phase – nur beim ersten Schritt der Phase sichtbar.</summary>
+    public string PhaseLabel { get; }
+
+    public bool StartsPhase { get; }
 }
 
 /// <summary>Ein Schritt-Ergebnis für die Anzeige.</summary>

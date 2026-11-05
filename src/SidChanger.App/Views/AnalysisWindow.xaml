@@ -1,0 +1,78 @@
+<Window x:Class="SidChanger.App.Views.AnalysisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Analyse starten"
+        Width="720" Height="660" MinWidth="620" MinHeight="460"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"
+        Background="{StaticResource WindowBackground}"
+        Icon="/Assets/logo.png"
+        FontFamily="Segoe UI" FontSize="13"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="22,18,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Image Source="/Assets/logo.png" Width="28" Height="28" Margin="0,0,12,0"
+                   VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock Text="Analyse starten" FontSize="19" FontWeight="Bold"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Style="{StaticResource Muted}" Margin="0,6,0,14"
+                   Text="Die Analyse liest nur und meldet, was passieren würde: Es wird nichts verändert, keine Sicherung angelegt, kein Dienst beendet und kein Neustart ausgelöst. Das Programm prüft jetzt die folgenden Schritte." />
+
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,0,0,12">
+            <TextBlock x:Name="SummaryText" TextWrapping="Wrap" LineHeight="19" />
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="StepList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,14">
+                                <TextBlock Text="{Binding PhaseLabel}"
+                                           Visibility="{Binding StartsPhase, Converter={StaticResource BoolToVis}}"
+                                           Foreground="{StaticResource TextMuted}" FontSize="11"
+                                           FontWeight="SemiBold" Margin="0,0,0,7" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="•" Foreground="{StaticResource Accent}"
+                                               FontWeight="Bold" Margin="0,0,9,0" VerticalAlignment="Top" />
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock Grid.Row="4" Style="{StaticResource Muted}" Margin="0,12,0,0"
+                   Text="Nach der Analyse entscheidet „Änderungen anwenden“ über die tatsächliche Änderung – dort folgt die Sicherung und die Bestätigung mit der neuen SID. Ein Abbruch hier ändert nichts." />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Abbrechen" Style="{StaticResource GhostButton}" Margin="0,0,10,0"
+                    IsCancel="True" Click="Cancel_OnClick" />
+            <Button Content="Analyse starten" Style="{StaticResource PrimaryButton}" MinWidth="150"
+                    IsDefault="True" Click="Ok_OnClick" />
+        </StackPanel>
+    </Grid>
+</Window>

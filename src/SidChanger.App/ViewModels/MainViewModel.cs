@@ -35,11 +35,12 @@ public sealed class MainViewModel : ObservableObject
     private bool _isBusy;
     private string _statusText = "Bereit.";
     private string _log = string.Empty;
+    private OperationProgress? _progress;
 
     public MainViewModel()
     {
         _dispatcher = Application.Current?.Dispatcher ?? System.Windows.Threading.Dispatcher.CurrentDispatcher;
-        _engine = new ChangeEngine(AppendLog, AppendStep);
+        _engine = new ChangeEngine(AppendLog, AppendStep, ReportProgressStart);
 
         Features = new ObservableCollection<FeatureOption>(
             FeatureCatalog.All.Select(info => new FeatureOption(info, info.DefaultOn)));
@@ -321,6 +322,29 @@ public sealed class MainViewModel : ObservableObject
         return request;
     }
 
+    /// <summary>Kurzfassung für das Bestätigungsfenster vor der Analyse.</summary>
+    private string BuildAnalysisSummary(ChangeRequest request, int stepCount)
+    {
+        var lines = new List<string>
+        {
+            $"Ausgewählte Aktionen: {Features.Count(f => f.IsSelected)}",
+            $"Geplante Schritte: {stepCount}",
+        };
+
+        if (request.ChangesMachineSid)
+        {
+            lines.Add($"Computer-SID: {OldSid} → {request.ResolveNewSid().Value}");
+        }
+
+        if (request.Has(ChangeFeature.ComputerName))
+        {
+            lines.Add($"Computername: {ComputerName} → {NewComputerName}");
+        }
+
+        lines.Add("Sicherung, Änderungen und Neustart: erst bei „Änderungen anwenden“.");
+        return string.Join(Environment.NewLine, lines);
+    }
+
     private async Task AnalyzeAsync()
     {
         var request = BuildRequest(reportErrors: true);
@@ -328,6 +352,29 @@ public sealed class MainViewModel : ObservableObject
         {
             return;
         }
+
+        var outline = StepCatalog.Outline(request.Features);
+        var plan = outline.Select(step => new AnalysisStepItem(step)).ToList();
+
+        var dialog = new AnalysisWindow(BuildAnalysisSummary(request, plan.Count), plan)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            StatusText = "Analyse abgebrochen – es wurde nichts verändert.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, "Analyse abgebrochen."));
+            return;
+        }
+
+        var progress = new OperationProgress(
+            "Analyse läuft",
+            "Es wird nur gelesen: keine Änderung, keine Sicherung, kein Neustart.",
+            "Das Programm arbeitet weiter, auch wenn ein Punkt länger dauert – bei den längeren steht ein Hinweis dabei. Am Ende bleibt dieses Fenster mit der Abschlussmeldung offen und wird mit „OK“ geschlossen.",
+            outline.Select(step => (step.Title, (string?)step.DurationHint)));
+
+        var progressWindow = ShowProgress(progress);
 
         IsBusy = true;
         Steps.Clear();
@@ -345,7 +392,10 @@ public sealed class MainViewModel : ObservableObject
             foreach (var result in results)
             {
                 Steps.Add(new StepItem(result.Title, result.Status, result.Message, result.Changes));
+                progress.Complete(result);
             }
+
+            progress.CompleteAll();
 
             var errors = results.Count(r => r.Status == StepStatus.Error);
             StatusText = errors == 0
@@ -356,11 +406,11 @@ public sealed class MainViewModel : ObservableObject
         {
             StatusText = "Analyse fehlgeschlagen.";
             AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, ex.Message));
+            progress.Fail(ex.Message);
         }
-        finally
-        {
-            IsBusy = false;
-        }
+
+        await FinishProgressAsync(progress, progressWindow);
+        IsBusy = false;
     }
 
     private async Task ApplyAsync()
@@ -376,13 +426,23 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        var progress = new OperationProgress(
+            "SID-Änderung läuft",
+            "Bitte nicht unterbrechen, nicht abmelden und währenddessen nichts am Computer tun.",
+            "Das Programm arbeitet weiter, auch wenn ein Punkt länger dauert – bei den längeren steht ein Hinweis dabei. Am Ende bleibt dieses Fenster mit der Abschlussmeldung offen und wird mit „OK“ geschlossen.",
+            StepCatalog.Outline(request.Features).Select(step => (step.Title, (string?)step.DurationHint)));
+
+        var progressWindow = ShowProgress(progress);
+        ChangeResult? result = null;
+        Exception? failure = null;
+
         IsBusy = true;
         Steps.Clear();
         StatusText = "SID-Änderung läuft – bitte nicht unterbrechen ...";
 
         try
         {
-            var result = await _engine.ApplyAsync(request);
+            result = await _engine.ApplyAsync(request);
             ApplyPreflight(new PreflightReport(_engine.Preflight, false, string.Empty));
             RefreshSid();
 
@@ -392,25 +452,34 @@ public sealed class MainViewModel : ObservableObject
                 Steps.Add(new StepItem(step.Title, step.Status, step.Message, step.Changes));
             }
 
+            progress.CompleteAll();
+
             StatusText = result.Blocked
                 ? "Durch die Vorabprüfung blockiert – es wurde nichts geändert."
                 : result.Success
                     ? "Änderung abgeschlossen. Bitte neu starten."
                     : "Änderung mit Fehlern beendet – bitte Protokoll und Sicherung prüfen.";
-
-            ShowResult(result);
         }
         catch (Exception ex)
         {
             StatusText = "Änderung abgebrochen.";
             AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, "Abbruch: " + ex));
-            MessageBox.Show("Die Änderung wurde abgebrochen:\n\n" + ex.Message, "SID-Wechsler – Fehler",
+            progress.Fail(ex.Message);
+            failure = ex;
+        }
+
+        await FinishProgressAsync(progress, progressWindow);
+        IsBusy = false;
+        RaiseCommandStates();
+
+        if (failure is not null)
+        {
+            MessageBox.Show("Die Änderung wurde abgebrochen:\n\n" + failure.Message, "SID-Wechsler – Fehler",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
+        else if (result is not null)
         {
-            IsBusy = false;
-            RaiseCommandStates();
+            ShowResult(result);
         }
     }
 
@@ -781,12 +850,25 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        var described = SystemPreparation.Describe(options);
+        var progress = new OperationProgress(
+            "Maschine wird vorbereitet",
+            "BitLocker, Defender-Echtzeitschutz, UCPD-Treiber, laufende Dienste und Autostart werden angepasst.",
+            "Das Programm arbeitet weiter, auch wenn ein Punkt länger dauert – bei den längeren steht ein Hinweis dabei. Am Ende bleibt dieses Fenster mit der Abschlussmeldung offen und wird mit „OK“ geschlossen.",
+            described.Select(step => (step.Title, step.DurationHint)));
+
+        var progressWindow = ShowProgress(progress);
+        PrepareResult? result = null;
+        Exception? failure = null;
+
         IsBusy = true;
         StatusText = "Maschine wird vorbereitet ...";
 
         try
         {
-            var result = await Task.Run(() => SystemPreparation.Run(options, LogInfo, LogWarning)).ConfigureAwait(true);
+            result = await Task
+                .Run(() => SystemPreparation.Run(options, LogInfo, LogWarning, ReportProgressStart))
+                .ConfigureAwait(true);
             await RefreshPreflightAsync().ConfigureAwait(true);
 
             foreach (var step in result.Steps)
@@ -794,42 +876,58 @@ public sealed class MainViewModel : ObservableObject
                 AppendLog(new LogEntry(DateTime.Now, LogLevel.Detail, step));
             }
 
+            progress.CompleteAll();
+
             StatusText = result.Success
                 ? "Maschine vorbereitet – bitte neu starten."
                 : "Vorbereitung mit Hinweisen beendet – bitte Protokoll ansehen.";
 
-            var restart = MessageBox.Show(result.Summary + "\n\nJetzt neu starten?",
-                "Maschine vorbereiten", MessageBoxButton.YesNo,
-                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning, MessageBoxResult.Yes);
-
-            if (restart == MessageBoxResult.Yes)
-            {
-                var (rebootAccepted, rebootDetail) = SystemPreparation.ScheduleReboot(15, LogInfo, LogWarning);
-
-                if (rebootAccepted)
-                {
-                    StatusText = "Neustart angefordert.";
-                    AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, rebootDetail));
-                }
-                else
-                {
-                    StatusText = "Neustart konnte nicht ausgelöst werden.";
-                    AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, rebootDetail));
-                    MessageBox.Show(rebootDetail, "Neustart nicht möglich",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
         }
         catch (Exception ex)
         {
             StatusText = "Vorbereitung fehlgeschlagen.";
             AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, "Vorbereitung: " + ex.Message));
-            MessageBox.Show("Die Vorbereitung ist fehlgeschlagen:\n\n" + ex.Message,
-                "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Error);
+            progress.Fail(ex.Message);
+            failure = ex;
         }
-        finally
+
+        await FinishProgressAsync(progress, progressWindow);
+        IsBusy = false;
+
+        if (failure is not null)
         {
-            IsBusy = false;
+            MessageBox.Show("Die Vorbereitung ist fehlgeschlagen:\n\n" + failure.Message,
+                "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        if (result is null)
+        {
+            return;
+        }
+
+        var restart = MessageBox.Show(result.Summary + "\n\nJetzt neu starten?",
+            "Maschine vorbereiten", MessageBoxButton.YesNo,
+            result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning, MessageBoxResult.Yes);
+
+        if (restart != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var (rebootAccepted, rebootDetail) = SystemPreparation.ScheduleReboot(15, LogInfo, LogWarning);
+
+        if (rebootAccepted)
+        {
+            StatusText = "Neustart angefordert.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, rebootDetail));
+        }
+        else
+        {
+            StatusText = "Neustart konnte nicht ausgelöst werden.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, rebootDetail));
+            MessageBox.Show(rebootDetail, "Neustart nicht möglich",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -935,6 +1033,69 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    // --- Fortschrittsfenster ------------------------------------------------
+
+    /// <summary>Zeigt das Fortschrittsfenster für einen laufenden Vorgang.</summary>
+    private ProgressWindow ShowProgress(OperationProgress progress)
+    {
+        _progress = progress;
+
+        var window = new ProgressWindow
+        {
+            DataContext = progress,
+            Owner = Application.Current?.MainWindow,
+        };
+
+        window.Show();
+        return window;
+    }
+
+    /// <summary>
+    /// Zeigt die Abschlussmeldung im Fortschrittsfenster und wartet, bis der Benutzer mit
+    /// „OK“ bestätigt – das Fenster bleibt dafür offen stehen.
+    /// </summary>
+    private async Task FinishProgressAsync(OperationProgress progress, ProgressWindow window)
+    {
+        progress.Finish();
+
+        await window.WaitForCloseAsync().ConfigureAwait(true);
+
+        CloseProgress(window);
+    }
+
+    /// <summary>Schließt das Fortschrittsfenster, auch wenn es schon geschlossen wurde.</summary>
+    private void CloseProgress(Window window)
+    {
+        _progress = null;
+
+        try
+        {
+            window.Close();
+        }
+        catch (InvalidOperationException)
+        {
+            // Das Fenster wurde vom Benutzer bereits geschlossen.
+        }
+    }
+
+    /// <summary>Meldet aus der Engine, welcher Schritt gerade beginnt.</summary>
+    private void ReportProgressStart(string title)
+    {
+        var progress = _progress;
+        if (progress is null)
+        {
+            return;
+        }
+
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke(new Action(() => progress.Start(title)));
+            return;
+        }
+
+        progress.Start(title);
+    }
+
     // --- Protokoll -----------------------------------------------------------
 
     private void AppendLog(LogEntry entry)
@@ -966,6 +1127,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         Steps.Add(new StepItem(result.Title, result.Status, result.Message, result.Changes));
+        _progress?.Complete(result);
     }
 
     private void RaiseCommandStates()

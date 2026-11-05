@@ -15,7 +15,7 @@ public sealed record PrepareOptions(
 public sealed record PrepareResult(bool Success, bool RebootRequired, string Summary, IReadOnlyList<string> Steps);
 
 /// <summary>Ein Punkt, den das Vorbereiten der Maschine ausführt.</summary>
-public sealed record PrepareStepInfo(string Title, string Description);
+public sealed record PrepareStepInfo(string Title, string Description, string? DurationHint = null);
 
 /// <summary>
 /// „Maschine vorbereiten": setzt die Elemente zurück, die eine SID-Änderung blockieren
@@ -24,6 +24,16 @@ public sealed record PrepareStepInfo(string Title, string Description);
 /// </summary>
 public static class SystemPreparation
 {
+    /// <summary>Titel der Vorbereitungsschritte – von <see cref="Describe"/> und <see cref="Run"/> gemeinsam genutzt.</summary>
+    private static class StepTitles
+    {
+        public const string BitLocker = "BitLocker für die nächsten Neustarts aussetzen";
+        public const string Defender = "Defender-Echtzeitschutz abschalten";
+        public const string Ucpd = "UCPD-Treiber anhalten und deaktivieren";
+        public const string Services = "Laufende Dienste beenden";
+        public const string RunOnce = "Programm nach der Anmeldung wieder öffnen";
+    }
+
     /// <summary>
     /// Beschreibt die Punkte, die <see cref="Run"/> ausführen wird – damit die Bestätigung
     /// im Programm genau das anzeigt, was danach wirklich passiert.
@@ -34,37 +44,40 @@ public static class SystemPreparation
 
         if (options.SuspendBitLocker)
         {
-            steps.Add(new PrepareStepInfo("BitLocker für die nächsten Neustarts aussetzen",
+            steps.Add(new PrepareStepInfo(StepTitles.BitLocker,
                 $"Der Schutz des Systemlaufwerks wird für die nächsten {Math.Clamp(options.RebootCount, 1, 15)} " +
                 "Neustarts ausgesetzt. Entschlüsselt wird nichts; danach schaltet sich der Schutz automatisch wieder ein."));
         }
 
         if (options.DisableDefender)
         {
-            steps.Add(new PrepareStepInfo("Defender-Echtzeitschutz abschalten",
+            steps.Add(new PrepareStepInfo(StepTitles.Defender,
                 "Echtzeit-, Verhaltens-, Skript- und Archivprüfung werden abgeschaltet und per Richtlinie deaktiviert. " +
-                "Blockiert der Manipulationsschutz von Windows, meldet das Programm das anschließend ehrlich."));
+                "Blockiert der Manipulationsschutz von Windows, meldet das Programm das anschließend ehrlich.",
+                "Kann einen Moment dauern, bis Windows die Richtlinie übernommen hat."));
         }
 
         if (options.DisableUcpd)
         {
-            steps.Add(new PrepareStepInfo("UCPD-Treiber anhalten und deaktivieren",
+            steps.Add(new PrepareStepInfo(StepTitles.Ucpd,
                 "Der User Choice Protection Driver wird angehalten und auf „deaktiviert“ gesetzt, damit er keine " +
-                "Registrierungsänderungen mehr blockiert."));
+                "Registrierungsänderungen mehr blockiert.",
+                "Kann einen Moment dauern, wenn der Treiber noch in Benutzung ist."));
         }
 
         if (options.StopServices)
         {
-            steps.Add(new PrepareStepInfo("Laufende Dienste beenden",
+            steps.Add(new PrepareStepInfo(StepTitles.Services,
                 "Alle laufenden Dienste außer den kritischen Systemdiensten werden beendet. Nach dem Neustart starten " +
                 "sie je nach Starttyp wieder; die vom Programm beendeten Dienste werden am Ende der SID-Änderung erneut " +
                 "gestartet. Startmenü und Taskleiste bleiben bedienbar: die Dienste dafür (u. a. StateRepository und " +
-                "AppXSvc) werden nicht angehalten."));
+                "AppXSvc) werden nicht angehalten.",
+                "Die Dienste werden nacheinander beendet – das kann ein bis zwei Minuten dauern."));
         }
 
         if (options.RestartAfterLogin)
         {
-            steps.Add(new PrepareStepInfo("Programm nach der Anmeldung wieder öffnen",
+            steps.Add(new PrepareStepInfo(StepTitles.RunOnce,
                 "Das Programm wird per RunOnce für die nächste Anmeldung eingetragen, damit es nach dem Neustart " +
                 "automatisch wieder offen ist."));
         }
@@ -73,13 +86,19 @@ public static class SystemPreparation
     }
 
     /// <summary>Führt alle gewählten Vorbereitungsschritte aus.</summary>
-    public static PrepareResult Run(PrepareOptions options, Action<string> log, Action<string>? warn)
+    /// <param name="stepStarted">Meldet den Titel des Schritts, der gerade beginnt.</param>
+    public static PrepareResult Run(
+        PrepareOptions options,
+        Action<string> log,
+        Action<string>? warn,
+        Action<string>? stepStarted = null)
     {
         var steps = new List<string>();
         var problems = new List<string>();
 
         if (options.SuspendBitLocker)
         {
+            stepStarted?.Invoke(StepTitles.BitLocker);
             var result = SystemFixes.SuspendBitLocker(options.RebootCount, log, warn);
             steps.Add(result.Summary);
             if (!result.Success)
@@ -90,6 +109,7 @@ public static class SystemPreparation
 
         if (options.DisableDefender)
         {
+            stepStarted?.Invoke(StepTitles.Defender);
             var result = SystemFixes.DisableDefender(log, warn);
             steps.Add(result.Summary);
             if (!result.Success)
@@ -100,6 +120,7 @@ public static class SystemPreparation
 
         if (options.DisableUcpd)
         {
+            stepStarted?.Invoke(StepTitles.Ucpd);
             var outcome = UcpdController.StopAndDisable(log, warn);
             steps.Add(outcome.Message);
 
@@ -111,6 +132,7 @@ public static class SystemPreparation
 
         if (options.StopServices)
         {
+            stepStarted?.Invoke(StepTitles.Services);
             var result = SystemFixes.StopAllServices(log, warn);
             steps.Add(result.Summary);
             if (!result.Success)
@@ -121,6 +143,7 @@ public static class SystemPreparation
 
         if (options.RestartAfterLogin)
         {
+            stepStarted?.Invoke(StepTitles.RunOnce);
             TryScheduleSelfRestart(log, warn);
         }
 

@@ -1,0 +1,119 @@
+<Window x:Class="SidChanger.App.Views.ProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Headline}"
+        Width="700" Height="700" MinWidth="600" MinHeight="440"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"
+        Background="{StaticResource WindowBackground}"
+        Icon="/Assets/logo.png"
+        FontFamily="Segoe UI" FontSize="13"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="22,18,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Image Source="/Assets/logo.png" Width="28" Height="28" Margin="0,0,12,0"
+                   VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock Text="{Binding Headline}" FontSize="19" FontWeight="Bold"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Style="{StaticResource Muted}" Margin="0,6,0,14"
+                   Text="{Binding Intro}" />
+
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding OverallText}"
+                               Foreground="{StaticResource TextMuted}" FontSize="11.5"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="Gesamtfortschritt" Style="{StaticResource SectionTitle}" FontSize="13" />
+                </DockPanel>
+
+                <ProgressBar Height="8" Margin="0,9,0,0" Minimum="0" Maximum="100"
+                             Value="{Binding OverallPercent}"
+                             Foreground="{StaticResource Accent}"
+                             Background="{StaticResource InputBackground}"
+                             BorderThickness="0" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Steps}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,15">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="{Binding Icon}" Foreground="{Binding Brush}"
+                                           FontWeight="Bold" Width="18" VerticalAlignment="Top" />
+
+                                <StackPanel Grid.Column="1">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}"
+                                                   Foreground="{Binding Brush}" FontSize="11"
+                                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    </DockPanel>
+
+                                    <ProgressBar Height="4" Margin="0,7,0,0" Minimum="0" Maximum="100"
+                                                 Value="{Binding BarValue}"
+                                                 IsIndeterminate="{Binding IsRunning}"
+                                                 Foreground="{Binding Brush}"
+                                                 Background="{StaticResource InputBackground}"
+                                                 BorderThickness="0" />
+
+                                    <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" Margin="0,6,0,0"
+                                               Visibility="{Binding HasHint, Converter={StaticResource BoolToVis}}" />
+
+                                    <TextBlock Text="{Binding Message}" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                               TextTrimming="CharacterEllipsis" MaxHeight="32"
+                                               Visibility="{Binding HasMessage, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Abschlussmeldung: bleibt stehen, bis der Benutzer mit OK bestätigt -->
+        <Border Grid.Row="4" Style="{StaticResource Card}" Margin="0,12,0,0"
+                Visibility="{Binding IsFinished, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ResultIcon}" Foreground="{Binding ResultBrush}"
+                               FontWeight="Bold" FontSize="15" Margin="0,0,8,0" />
+                    <TextBlock Text="Abschluss" FontWeight="SemiBold" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" Margin="0,8,0,0" LineHeight="19" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="5" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="{Binding Footer}" Style="{StaticResource Muted}"
+                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+            <Button Grid.Column="1" Content="OK" Style="{StaticResource PrimaryButton}" MinWidth="110"
+                    IsDefault="True" IsEnabled="{Binding IsFinished}" Click="Ok_OnClick" />
+        </Grid>
+    </Grid>
+</Window>

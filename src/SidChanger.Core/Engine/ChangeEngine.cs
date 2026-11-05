@@ -28,11 +28,13 @@ public sealed class ChangeEngine
 {
     private readonly Action<LogEntry> _log;
     private readonly Action<StepResult>? _stepSink;
+    private readonly Action<string>? _stepStarted;
 
-    public ChangeEngine(Action<LogEntry> log, Action<StepResult>? stepSink = null)
+    public ChangeEngine(Action<LogEntry> log, Action<StepResult>? stepSink = null, Action<string>? stepStarted = null)
     {
         _log = log;
         _stepSink = stepSink;
+        _stepStarted = stepStarted;
     }
 
     public IReadOnlyList<PreflightCheck> Preflight { get; private set; } = Array.Empty<PreflightCheck>();
@@ -130,6 +132,8 @@ public sealed class ChangeEngine
         foreach (var step in StepCatalog.Build(request.Features))
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            _stepStarted?.Invoke(step.Title);
 
             try
             {
@@ -236,6 +240,7 @@ public sealed class ChangeEngine
             cancellationToken.ThrowIfCancellationRequested();
 
             _log(new LogEntry(DateTime.Now, LogLevel.Info, $"→ {step.Title}"));
+            _stepStarted?.Invoke(step.Title);
 
             try
             {

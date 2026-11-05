@@ -10,14 +10,31 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.7-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.7/SidWechsler-1.0.0.7-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.7/SidWechsler-1.0.0.7-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.7>
+  [`SidWechsler-1.0.0.8-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.8/SidWechsler-1.0.0.8-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.8/SidWechsler-1.0.0.8-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.8>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.8
+
+* **Bestätigung vor der Analyse:** „Analyse starten“ öffnet zuerst ein eigenes Fenster mit allen
+  geplanten Schritten in Ausführungsreihenfolge (Vorbereitung, Änderung, Abschluss), je Schritt
+  eine Zeile dazu, was dafür geprüft wird, sowie die neue Computer-SID und der neue Computername –
+  bestätigbar oder abbrechbar. Die Liste entsteht aus derselben Schrittfolge, die die Analyse
+  danach tatsächlich abarbeitet.
+* **Fortschrittsfenster für alle drei Abläufe:** „Maschine vorbereiten“, „Analyse“ und
+  „Änderungen anwenden“ zeigen jeden Punkt mit eigenem Balken und Status (wartet / läuft /
+  erledigt / Hinweis / Fehler) sowie dem Ergebnis, sobald er fertig ist. Punkte, die länger
+  dauern können (SAM-Umschreibung, Profil-ACLs, DPAPI/EFS, Vault, Taskplaner, moderne Apps,
+  Dienste), tragen einen entsprechenden Hinweis.
+* **Abschlussmeldung mit „OK“:** Das Fortschrittsfenster bleibt am Ende offen und meldet, was
+  geklappt hat und was nicht („9 von 12 Punkt(en) erledigt, 1 fehlgeschlagen“ plus die betroffenen
+  Punkte samt Meldung). Erst mit „OK“ geht es weiter – danach folgen wie bisher der Ergebnisdialog
+  bzw. die Neustart-Frage.
 
 ### Version 1.0.0.7
 
@@ -142,11 +159,20 @@ zuvor beendete Dienste wieder starten) → optionaler Neustart/Herunterfahren.
 * **Rechte Spalte:** Ergebnisse der Vorabprüfung (Administratorrechte, Domäne, Virenscanner,
   ausstehende Updates, BitLocker, UCPD-Treiber, Windows-Version), Schritt-für-Schritt-Status
   und ein vollständiges Protokoll (speicherbar).
-* **Schaltflächen:** Analyse (ändert nichts), Änderungen anwenden (mit Bestätigungsdialog),
+* **Schaltflächen:** Analyse (ändert nichts – zeigt vorher ein eigenes Fenster mit allen geplanten
+  Schritten in Ausführungsreihenfolge, die neue SID und den neuen Computernamen, bestätigbar oder
+  abbrechbar), Änderungen anwenden (mit Bestätigungsdialog),
   letzte Änderung zurücknehmen, Sicherungsordner öffnen.
 * **„Maschine vorbereiten“** öffnet vor dem Ausführen ein eigenes Fenster, das alle geplanten
   Eingriffe auflistet (BitLocker, Defender-Echtzeitschutz, UCPD-Treiber, laufende Dienste,
   Autostart) – mit „Abbrechen“ und „OK“.
+* **Fortschrittsfenster für alle drei Abläufe** (Vorbereiten, Analyse, Änderung): ein Gesamtbalken,
+  darunter jeder Punkt mit eigenem Balken und Status (wartet / läuft / erledigt / Hinweis / Fehler)
+  sowie dem Ergebnis, sobald er fertig ist. Punkte, die länger dauern können, tragen einen
+  entsprechenden Hinweis (z. B. SAM-Umschreibung, Profil-ACLs, DPAPI, Dienste), damit niemand
+  einen hängenden Rechner vermutet. Das Fenster bleibt am Ende **offen**, zeigt eine
+  Abschlussmeldung („9 von 12 Punkten erledigt“ plus die Punkte, die nicht geklappt haben) und
+  wird erst mit **„OK“** geschlossen.
 
 ---
 

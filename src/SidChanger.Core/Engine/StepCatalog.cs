@@ -32,12 +32,21 @@ public sealed class ChangeStep
 
     public StepPhase Phase { get; init; } = StepPhase.Apply;
 
+    /// <summary>Kurztext für die Bestätigung vor der Analyse: was dieser Schritt prüfen würde.</summary>
+    public string AnalyzeHint { get; init; } = string.Empty;
+
+    /// <summary>Hinweis für den Fortschritt, wenn der Schritt länger dauern kann.</summary>
+    public string DurationHint { get; init; } = string.Empty;
+
     /// <summary>Führt den Schritt aus.</summary>
     public required Func<ChangeContext, CancellationToken, Task<StepResult>> Run { get; init; }
 
     /// <summary>Beschreibt für die Analyse, was der Schritt tun würde (ohne Änderung).</summary>
     public Func<ChangeContext, Task<string?>>? Analyze { get; init; }
 }
+
+/// <summary>Ein geplanter Schritt für die Anzeige vor der Analyse.</summary>
+public sealed record StepOutline(StepPhase Phase, string Title, string Hint, bool StartsPhase, string DurationHint);
 
 /// <summary>Alle Änderungsschritte in der richtigen Reihenfolge.</summary>
 public static class StepCatalog
@@ -68,6 +77,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.RestorePoint,
             Title = "Wiederherstellungspunkt anlegen",
+            AnalyzeHint = "Prüft, ob die Systemwiederherstellung aktiv ist – sonst entsteht kein Punkt.",
+            DurationHint = "Windows braucht dafür oft 30 bis 90 Sekunden – das ist normal.",
             Phase = StepPhase.Prepare,
             Run = CreateRestorePointAsync,
             Analyze = _ => Task.FromResult<string?>(SystemRestore.IsDisabled()
@@ -79,6 +90,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.UcpdDisable,
             Title = "UCPD-Treiber anhalten",
+            AnalyzeHint = "Liest den Zustand des UCPD-Treibers.",
             Phase = StepPhase.Prepare,
             Run = RunUcpdAsync,
             Analyze = ctx => Task.FromResult<string?>(
@@ -89,6 +101,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.VaultPreserve,
             Title = "Windows Vault sichern",
+            AnalyzeHint = "Zählt die Profile, deren Windows Vault gesichert würde.",
+            DurationHint = "Kann bei vielen Profilen etwas dauern.",
             Phase = StepPhase.Prepare,
             Run = BackupVaultAsync,
             Analyze = ctx => Task.FromResult<string?>($"Windows Vault von {Profiles(ctx).Count} Profil(en) wird gesichert."),
@@ -98,6 +112,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.DpapiEfsKeys,
             Title = "DPAPI-/EFS-Schlüsselmaterial sichern",
+            AnalyzeHint = "Zählt die DPAPI- und Zertifikatsordner der Profile.",
+            DurationHint = "Kann bei vielen Profilen einige Minuten dauern.",
             Phase = StepPhase.Prepare,
             Run = BackupDpapiAsync,
             Analyze = ctx => Task.FromResult<string?>($"DPAPI- und Zertifikatsordner ({VaultAndDpapi.GetDpapiPaths(Profiles(ctx)).Count}) werden gesichert."),
@@ -108,6 +124,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.LogoffOtherUsers,
             Title = "Andere Benutzer abmelden",
+            AnalyzeHint = "Zeigt, ob weitere Sitzungen angemeldet sind; beim Anwenden werden sie beendet.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var count = AdministrativeActions.LogoffOtherSessions(ctx.Info, ctx.Warn, ct);
@@ -122,6 +139,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.MachineSid,
             Title = "Computer-SID ersetzen",
+            AnalyzeHint = "Zählt die SID-Vorkommen in SAM und SECURITY und die lokalen Konten.",
+            DurationHint = "Kann je nach Größe der SAM eine bis mehrere Minuten dauern – bitte warten.",
             Run = ReplaceMachineSidAsync,
             Analyze = AnalyzeMachineSidAsync,
         });
@@ -130,6 +149,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ProfileAcl,
             Title = "NTFS-Rechte der Profile anpassen",
+            AnalyzeHint = "Zählt die vorhandenen Profilordner und ob rekursiv gearbeitet wird.",
+            DurationHint = "Bei großen Profilen mehrere Minuten – je nach Datenmenge und rekursiver Suche.",
             Run = FixProfileAclsAsync,
             Analyze = ctx => Task.FromResult<string?>(
                 $"{Profiles(ctx).Count(p => p.Exists)} Profilordner werden angepasst" +
@@ -140,6 +161,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ProfileList,
             Title = "Benutzerprofile umschlüsseln",
+            AnalyzeHint = "Zählt die ProfileList-Einträge mit der alten SID.",
             Run = FixProfileListAsync,
             Analyze = ctx => Task.FromResult<string?>(
                 $"{ProfileListFixer.Plan(ctx.RequireOldSid(), ctx.NewSid, ctx.Warn).Count} ProfileList-Einträge werden umbenannt."),
@@ -149,6 +171,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.TaskScheduler,
             Title = "Taskplaner-Aufgaben korrigieren",
+            AnalyzeHint = "Zählt die Aufgaben, die die alte SID enthalten.",
+            DurationHint = "Liest jede Aufgabendatei – bei vielen Aufgaben bis zu einer Minute.",
             Run = FixTasksAsync,
             Analyze = ctx => Task.FromResult<string?>(
                 $"{TaskSchedulerFixer.CountAffectedFiles(ctx.RequireOldSid(), ctx.Warn)} Aufgaben enthalten die alte SID."),
@@ -158,6 +182,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.WsusId,
             Title = "WSUS-ID / Update-ID erneuern",
+            AnalyzeHint = "Liest SusClientId und PingID.",
             Run = ResetWsusAsync,
             Analyze = ctx => Task.FromResult<string?>(DescribeValues(ctx, new[] { (RegistryHive.LocalMachine, WuPath, "SusClientId") })),
         });
@@ -166,6 +191,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.MachineGuid,
             Title = "MachineGuid erneuern",
+            AnalyzeHint = "Liest die aktuelle MachineGuid.",
             Run = (ctx, ct) => SetGuidsAsync(ctx, ChangeFeature.MachineGuid, "MachineGuid erneuern",
                 new[] { (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Cryptography", "MachineGuid") }, createIfMissing: true, braces: false),
             Analyze = ctx => Task.FromResult<string?>(DescribeValues(ctx, new[] { (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Cryptography", "MachineGuid") })),
@@ -175,6 +201,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.MachineId,
             Title = "Machine ID (SQM) erneuern",
+            AnalyzeHint = "Liest die aktuelle SQM-MachineId.",
             Run = (ctx, ct) => SetGuidsAsync(ctx, ChangeFeature.MachineId, "Machine ID (SQM) erneuern",
                 new[] { (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\SQMClient", "MachineId") }, createIfMissing: true, braces: true),
             Analyze = ctx => Task.FromResult<string?>(DescribeValues(ctx, new[] { (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\SQMClient", "MachineId") })),
@@ -184,6 +211,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ModernAppsDeviceId,
             Title = "Geräte-ID moderner Apps erneuern",
+            AnalyzeHint = "Liest die Geräte-IDs von Store, Appx, AppModel und Hardwareprofil.",
             Run = (ctx, ct) => SetGuidsAsync(ctx, ChangeFeature.ModernAppsDeviceId, "Geräte-ID moderner Apps erneuern",
                 DeviceIdTargets, createIfMissing: false, braces: true),
             Analyze = ctx => Task.FromResult<string?>(DescribeValues(ctx, DeviceIdTargets)),
@@ -193,6 +221,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.GlobalDeviceId,
             Title = "Globale Geräte-ID erneuern",
+            AnalyzeHint = "Liest GlobalDeviceId – die Änderung kann die Windows-Aktivierung beeinflussen.",
             Run = (ctx, ct) => SetGuidsAsync(ctx, ChangeFeature.GlobalDeviceId, "Globale Geräte-ID erneuern",
                 new[] { (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Store", "GlobalDeviceId") }, createIfMissing: false, braces: true),
             Analyze = ctx => Task.FromResult<string?>(
@@ -204,6 +233,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.MsdtcCid,
             Title = "MSDTC-CID erneuern",
+            AnalyzeHint = "Liest die aktuelle MSDTC-CID.",
             Run = (ctx, ct) => SetGuidsAsync(ctx, ChangeFeature.MsdtcCid, "MSDTC-CID erneuern",
                 new[]
                 {
@@ -220,6 +250,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.Dhcpv6Duid,
             Title = "DHCPv6-DUID erneuern",
+            AnalyzeHint = "Prüft, ob eine DHCPv6-DUID vorhanden ist.",
             Run = ResetDuidAsync,
             Analyze = ctx => Task.FromResult<string?>(
                 RegistryUtil.ValueExists(RegistryHive.LocalMachine, @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters", "Dhcpv6DUID")
@@ -231,6 +262,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ActionCenter,
             Title = "Info-Center-Einstellungen zurücksetzen",
+            AnalyzeHint = "Liest die Info-Center-Einstellungen des aktuellen Benutzers.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var changed = AdministrativeActions.ResetActionCenter(ctx.Info, ctx.Warn);
@@ -244,6 +276,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ComputerName,
             Title = "Computernamen ändern",
+            AnalyzeHint = "Prüft den neuen Namen, löst Platzhalter auf und vergleicht ihn mit dem aktuellen.",
             Run = SetComputerNameAsync,
             Analyze = ctx => Task.FromResult<string?>(ComputerNameDescription(ctx)),
         });
@@ -252,6 +285,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ComputerDescription,
             Title = "Computerbeschreibung ändern",
+            AnalyzeHint = "Zeigt die neue Beschreibung im Klartext.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var text = ctx.Request.NewComputerDescription ?? string.Empty;
@@ -266,6 +300,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.McAfeeId,
             Title = "McAfee-Agent-ID zurücksetzen",
+            AnalyzeHint = "Prüft, ob ein McAfee Agent installiert ist.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var changed = AdministrativeActions.ResetMcAfeeId(ctx.Info, ctx.Warn);
@@ -280,6 +315,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.OneDriveReset,
             Title = "OneDrive zurücksetzen",
+            AnalyzeHint = "Prüft, welche OneDrive-Kontobindungen vorhanden sind.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var changed = AdministrativeActions.ResetOneDrive(ctx.Info, ctx.Warn);
@@ -293,6 +329,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.SearchReset,
             Title = "Windows-Suche zurücksetzen",
+            AnalyzeHint = "Prüft die lokale Suchdatenbank.",
+            DurationHint = "Die Suchdatenbank wird gelöscht – kann eine Minute dauern.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var deleted = AdministrativeActions.ResetSearch(ctx.Info, ctx.Warn);
@@ -306,6 +344,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.ModernAppsReset,
             Title = "Moderne Apps zurücksetzen",
+            AnalyzeHint = "Zeigt den App-Filter, mit dem zurückgesetzt würde.",
+            DurationHint = "Jede App wird einzeln zurückgesetzt – das kann mehrere Minuten dauern.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var (reset, failed, _) = AdministrativeActions.ResetModernApps(ctx.Request.AppxFilters, ctx.Info, ctx.Warn);
@@ -321,6 +361,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.DefaultAppsReset,
             Title = "Standard-Apps zurücksetzen",
+            AnalyzeHint = "Prüft die Dateizuordnungen des aktuellen Benutzers.",
             Run = (ctx, ct) => Task.Run(() =>
             {
                 var removed = AdministrativeActions.ResetDefaultApps(ctx.Info, ctx.Warn);
@@ -334,6 +375,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.SqlMaster,
             Title = "SQL-Server-master-Datenbank anpassen",
+            AnalyzeHint = "Sucht einen lokalen SQL Server mit sqlcmd.",
+            DurationHint = "Sicherung und Reparaturskript – kann eine Minute dauern.",
             Run = FixSqlMasterAsync,
             Analyze = ctx => Task.FromResult<string?>(
                 SqlMasterFixer.Detect(ctx.Warn) is { } sql
@@ -346,6 +389,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.DpapiEfsKeys,
             Title = "DPAPI-/EFS-Material an neue SID anpassen",
+            AnalyzeHint = "Prüft die gesicherten DPAPI-/EFS-Ordner und die SID-Vorkommen darin.",
+            DurationHint = "Dateien werden durchsucht und umbenannt – kann mehrere Minuten dauern.",
             Phase = StepPhase.Finalize,
             Run = FinalizeDpapiAsync,
             Analyze = _ => Task.FromResult<string?>("Sicherung wird zurückgespielt, SID in Schlüsseldateien ersetzt, ACLs angepasst."),
@@ -355,6 +400,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.VaultPreserve,
             Title = "Windows Vault wiederherstellen",
+            AnalyzeHint = "Prüft, ob eine Vault-Sicherung vorliegt.",
+            DurationHint = "Kann bei vielen Profilen etwas dauern.",
             Phase = StepPhase.Finalize,
             Run = RestoreVaultAsync,
             Analyze = _ => Task.FromResult<string?>("Der gesicherte Windows Vault wird zurückgespielt."),
@@ -364,6 +411,7 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.RestorePoint,
             Title = "Wiederherstellungspunkt abschließen",
+            AnalyzeHint = "Prüft, ob ein Wiederherstellungspunkt offen ist.",
             Phase = StepPhase.Finalize,
             Run = FinishRestorePointAsync,
             Analyze = _ => Task.FromResult<string?>("Der begonnene Wiederherstellungspunkt wird abgeschlossen."),
@@ -373,6 +421,8 @@ public static class StepCatalog
         {
             Feature = ChangeFeature.MachineSid,
             Title = "Dienste nach der Änderung prüfen",
+            AnalyzeHint = "Sucht Dienste, die unter lokalen Benutzerkonten laufen.",
+            DurationHint = "Dienste werden dabei neu gestartet – kann bis zu einer Minute dauern.",
             Phase = StepPhase.Finalize,
             Run = CheckServicesAsync,
             Analyze = _ => Task.FromResult<string?>(
@@ -380,6 +430,25 @@ public static class StepCatalog
         });
 
         return steps;
+    }
+
+    /// <summary>
+    /// Beschreibt in Ausführungsreihenfolge, was eine Analyse für diese Aktionen prüft –
+    /// damit die Bestätigung vor dem Start genau das anzeigen kann, was danach passiert.
+    /// </summary>
+    public static IReadOnlyList<StepOutline> Outline(ChangeFeature features)
+    {
+        var outline = new List<StepOutline>();
+        StepPhase? previous = null;
+
+        foreach (var step in Build(features))
+        {
+            var startsPhase = previous != step.Phase;
+            outline.Add(new StepOutline(step.Phase, step.Title, step.AnalyzeHint, startsPhase, step.DurationHint));
+            previous = step.Phase;
+        }
+
+        return outline;
     }
 
     // --- UCPD-Treiber -------------------------------------------------------
