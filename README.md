@@ -10,14 +10,24 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.8-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.8/SidWechsler-1.0.0.8-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.8/SidWechsler-1.0.0.8-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.8>
+  [`SidWechsler-1.0.0.9-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.9/SidWechsler-1.0.0.9-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.9/SidWechsler-1.0.0.9-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.9>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.9
+
+* **Abbruch beim Start der Analyse behoben:** Das Fortschrittsfenster band beide Balken an
+  schreibgeschützte Eigenschaften. WPF beanstandet das erst zur Laufzeit („TwoWay-Bindungen
+  funktionieren nicht mit der schreibgeschützten Eigenschaft …“), „Analyse starten“ brach dadurch
+  ab, ohne zu analysieren. Beide Balken sind jetzt einseitig angebunden.
+* **Die Anzeige kann den Ablauf nicht mehr stoppen:** Lässt sich das Fortschrittsfenster aus
+  irgendeinem Grund nicht öffnen, schreibt das Programm eine Warnung ins Protokoll und führt
+  Vorbereitung, Analyse oder Änderung ohne Fenster fort, statt abzubrechen.
 
 ### Version 1.0.0.8
 

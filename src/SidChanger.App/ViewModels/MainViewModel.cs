@@ -1035,28 +1035,45 @@ public sealed class MainViewModel : ObservableObject
 
     // --- Fortschrittsfenster ------------------------------------------------
 
-    /// <summary>Zeigt das Fortschrittsfenster für einen laufenden Vorgang.</summary>
-    private ProgressWindow ShowProgress(OperationProgress progress)
+    /// <summary>
+    /// Zeigt das Fortschrittsfenster für einen laufenden Vorgang. Scheitert die Anzeige,
+    /// läuft der Vorgang trotzdem weiter – eine kaputte Anzeige darf keine Änderung verhindern.
+    /// </summary>
+    private ProgressWindow? ShowProgress(OperationProgress progress)
     {
-        _progress = progress;
-
-        var window = new ProgressWindow
+        try
         {
-            DataContext = progress,
-            Owner = Application.Current?.MainWindow,
-        };
+            var window = new ProgressWindow
+            {
+                DataContext = progress,
+                Owner = Application.Current?.MainWindow,
+            };
 
-        window.Show();
-        return window;
+            window.Show();
+            _progress = progress;
+            return window;
+        }
+        catch (Exception ex)
+        {
+            _progress = null;
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Warning,
+                "Fortschrittsfenster konnte nicht angezeigt werden: " + ex.Message));
+            return null;
+        }
     }
 
     /// <summary>
     /// Zeigt die Abschlussmeldung im Fortschrittsfenster und wartet, bis der Benutzer mit
     /// „OK“ bestätigt – das Fenster bleibt dafür offen stehen.
     /// </summary>
-    private async Task FinishProgressAsync(OperationProgress progress, ProgressWindow window)
+    private async Task FinishProgressAsync(OperationProgress progress, ProgressWindow? window)
     {
         progress.Finish();
+
+        if (window is null)
+        {
+            return;
+        }
 
         await window.WaitForCloseAsync().ConfigureAwait(true);
 

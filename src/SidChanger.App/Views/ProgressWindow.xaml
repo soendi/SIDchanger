@@ -39,7 +39,7 @@
                 </DockPanel>
 
                 <ProgressBar Height="8" Margin="0,9,0,0" Minimum="0" Maximum="100"
-                             Value="{Binding OverallPercent}"
+                             Value="{Binding OverallPercent, Mode=OneWay}"
                              Foreground="{StaticResource Accent}"
                              Background="{StaticResource InputBackground}"
                              BorderThickness="0" />
@@ -69,8 +69,8 @@
                                     </DockPanel>
 
                                     <ProgressBar Height="4" Margin="0,7,0,0" Minimum="0" Maximum="100"
-                                                 Value="{Binding BarValue}"
-                                                 IsIndeterminate="{Binding IsRunning}"
+                                                 Value="{Binding BarValue, Mode=OneWay}"
+                                                 IsIndeterminate="{Binding IsRunning, Mode=OneWay}"
                                                  Foreground="{Binding Brush}"
                                                  Background="{StaticResource InputBackground}"
                                                  BorderThickness="0" />
@@ -113,7 +113,7 @@
                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
             <Button Grid.Column="1" Content="OK" Style="{StaticResource PrimaryButton}" MinWidth="110"
-                    IsDefault="True" IsEnabled="{Binding IsFinished}" Click="Ok_OnClick" />
+                    IsDefault="True" IsEnabled="{Binding IsFinished, Mode=OneWay}" Click="Ok_OnClick" />
         </Grid>
     </Grid>
 </Window>
