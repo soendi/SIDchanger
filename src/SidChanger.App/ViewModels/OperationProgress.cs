@@ -197,12 +197,20 @@ public sealed class OperationProgress : ObservableObject
     /// <summary>Markiert einen Punkt als laufend; vorher laufende Punkte gelten als erledigt.</summary>
     public void Start(string title)
     {
+        // Ein verspätet zugestellter Start darf einen abgeschlossenen Vorgang nicht mehr verändern.
+        if (IsFinished)
+        {
+            return;
+        }
+
         foreach (var running in Steps.Where(s => s.State == ProgressState.Running))
         {
             running.State = ProgressState.Done;
         }
 
-        if (Find(title) is { } item)
+        // Nur wartende Punkte werden gestartet – ein bereits erledigter oder fehlgeschlagener
+        // Punkt springt dadurch nicht wieder auf „läuft“ zurück.
+        if (Find(title) is { State: ProgressState.Waiting } item)
         {
             item.State = ProgressState.Running;
             item.Message = string.Empty;
@@ -214,7 +222,7 @@ public sealed class OperationProgress : ObservableObject
     /// <summary>Übernimmt das Ergebnis eines Punkts samt Meldung.</summary>
     public void Complete(StepResult result)
     {
-        if (Find(result.Title) is not { } item)
+        if (IsFinished || Find(result.Title) is not { } item)
         {
             return;
         }

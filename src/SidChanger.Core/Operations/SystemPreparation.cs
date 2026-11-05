@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using SidChanger.Sid;
 
 namespace SidChanger.Core.Operations;
 
@@ -11,8 +12,16 @@ public sealed record PrepareOptions(
     bool RestartAfterLogin,
     int RebootCount = 3);
 
+/// <summary>Ergebnis eines einzelnen Vorbereitungsschritts – für das Fortschrittsfenster.</summary>
+public sealed record PrepareStepResult(string Title, StepStatus Status, string Message);
+
 /// <summary>Ergebnis der Vorbereitung.</summary>
-public sealed record PrepareResult(bool Success, bool RebootRequired, string Summary, IReadOnlyList<string> Steps);
+public sealed record PrepareResult(
+    bool Success,
+    bool RebootRequired,
+    string Summary,
+    IReadOnlyList<string> Steps,
+    IReadOnlyList<PrepareStepResult> StepResults);
 
 /// <summary>Ein Punkt, den das Vorbereiten der Maschine ausführt.</summary>
 public sealed record PrepareStepInfo(string Title, string Description, string? DurationHint = null);
@@ -94,57 +103,73 @@ public static class SystemPreparation
         Action<string>? stepStarted = null)
     {
         var steps = new List<string>();
+        var stepResults = new List<PrepareStepResult>();
         var problems = new List<string>();
+
+        // Jeder Schritt landet doppelt: als Protokollzeile und als Ergebnis für das
+        // Fortschrittsfenster. Als „Problem“ zählen nur echte Fehler, keine Hinweise.
+        void Add(string title, StepStatus status, string message)
+        {
+            steps.Add(message);
+            stepResults.Add(new PrepareStepResult(title, status, message));
+
+            if (status == StepStatus.Error)
+            {
+                problems.Add(message);
+            }
+        }
 
         if (options.SuspendBitLocker)
         {
             stepStarted?.Invoke(StepTitles.BitLocker);
             var result = SystemFixes.SuspendBitLocker(options.RebootCount, log, warn);
-            steps.Add(result.Summary);
-            if (!result.Success)
-            {
-                problems.Add(result.Summary);
-            }
+            Add(StepTitles.BitLocker, result.Success ? StepStatus.Ok : StepStatus.Error, result.Summary);
         }
 
         if (options.DisableDefender)
         {
             stepStarted?.Invoke(StepTitles.Defender);
             var result = SystemFixes.DisableDefender(log, warn);
-            steps.Add(result.Summary);
-            if (!result.Success)
-            {
-                problems.Add(result.Summary);
-            }
+            Add(StepTitles.Defender, result.Success ? StepStatus.Ok : StepStatus.Error, result.Summary);
         }
 
         if (options.DisableUcpd)
         {
             stepStarted?.Invoke(StepTitles.Ucpd);
             var outcome = UcpdController.StopAndDisable(log, warn);
-            steps.Add(outcome.Message);
 
-            if (!outcome.Stopped && !outcome.Disabled)
-            {
-                problems.Add(outcome.Message);
-            }
+            var status = outcome.Stopped && outcome.Disabled
+                ? StepStatus.Ok
+                : outcome.Stopped || outcome.Disabled
+                    ? StepStatus.Warning
+                    : StepStatus.Error;
+
+            Add(StepTitles.Ucpd, status, outcome.Message);
         }
 
         if (options.StopServices)
         {
             stepStarted?.Invoke(StepTitles.Services);
             var result = SystemFixes.StopAllServices(log, warn);
-            steps.Add(result.Summary);
-            if (!result.Success)
-            {
-                problems.Add(result.Summary);
-            }
+            Add(StepTitles.Services, result.Success ? StepStatus.Ok : StepStatus.Error, result.Summary);
         }
 
         if (options.RestartAfterLogin)
         {
             stepStarted?.Invoke(StepTitles.RunOnce);
-            TryScheduleSelfRestart(log, warn);
+
+            var details = new List<string>();
+            var scheduled = TryScheduleSelfRestart(log, message =>
+            {
+                details.Add(message);
+                warn?.Invoke(message);
+            });
+
+            Add(StepTitles.RunOnce,
+                scheduled ? StepStatus.Ok : StepStatus.Warning,
+                scheduled
+                    ? "Das Programm startet nach der nächsten Anmeldung automatisch wieder."
+                    : string.Join(" ", details));
         }
 
         var summary = problems.Count == 0
@@ -153,7 +178,7 @@ public static class SystemPreparation
             : "Vorbereitung mit Hinweisen beendet:\n\n• " + string.Join("\n• ", problems) +
               "\n\nBitte trotzdem neu starten und die Vorabprüfung danach erneut ansehen.";
 
-        return new PrepareResult(problems.Count == 0, true, summary, steps);
+        return new PrepareResult(problems.Count == 0, true, summary, steps, stepResults);
     }
 
     /// <summary>

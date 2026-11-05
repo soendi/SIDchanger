@@ -10,14 +10,26 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.9-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.9/SidWechsler-1.0.0.9-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.9/SidWechsler-1.0.0.9-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.9>
+  [`SidWechsler-1.0.0.10-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.10/SidWechsler-1.0.0.10-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.10/SidWechsler-1.0.0.10-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.10>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.10
+
+* **Abschlussmeldung der Vorbereitung stimmt jetzt:** Jeder Vorbereitungsschritt (BitLocker,
+  Defender, UCPD, Dienste, Autostart) meldet sein eigenes Ergebnis. Bisher wurden alle Punkte
+  pauschal als erledigt angezeigt, und die Abschlussmeldung konnte „Alles, was geplant war, hat
+  geklappt“ behaupten, obwohl ein Schritt gescheitert war. Jetzt steht der betroffene Schritt
+  unter „Das hat nicht geklappt“, halbe Erfolge (UCPD angehalten, aber nicht deaktiviert) unter
+  „Darauf bitte achten“.
+* **Kein Zurückspringen mehr auf „läuft“:** Ein verspätet zugestellter Schrittstart kann einen
+  bereits erledigten oder fehlgeschlagenen Punkt nicht mehr auf „läuft“ setzen – das hätte die
+  Zählung der Abschlussmeldung verfälscht.
 
 ### Version 1.0.0.9
 

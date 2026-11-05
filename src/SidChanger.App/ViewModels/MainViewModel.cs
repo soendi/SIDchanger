@@ -876,7 +876,12 @@ public sealed class MainViewModel : ObservableObject
                 AppendLog(new LogEntry(DateTime.Now, LogLevel.Detail, step));
             }
 
-            progress.CompleteAll();
+            // Jeder Schritt meldet sein eigenes Ergebnis, damit die Abschlussmeldung auch
+            // zeigt, was nicht geklappt hat – und nicht pauschal „alles erledigt“ behauptet.
+            foreach (var step in result.StepResults)
+            {
+                progress.Complete(new StepResult(ChangeFeature.None, step.Title, step.Status, step.Message));
+            }
 
             StatusText = result.Success
                 ? "Maschine vorbereitet – bitte neu starten."
