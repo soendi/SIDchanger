@@ -143,6 +143,7 @@
 
                                                 <CheckBox Grid.Column="0" Margin="0,2,10,0"
                                                           Style="{StaticResource OptionCheck}"
+                                                          IsEnabled="{Binding CanToggle}"
                                                           IsChecked="{Binding IsSelected, Mode=TwoWay}" />
 
                                                 <StackPanel Grid.Column="1">
@@ -150,6 +151,9 @@
                                                     <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,3,0,0" />
                                                     <TextBlock Text="{Binding Details}" FontSize="10.5" Foreground="#6D7A87"
                                                                TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                    <TextBlock Text="{Binding LockHint}" FontSize="10.5" Foreground="#7FA8C9"
+                                                               TextWrapping="Wrap" Margin="0,3,0,0"
+                                                               Visibility="{Binding IsLocked, Converter={StaticResource BoolToVis}}" />
                                                 </StackPanel>
 
                                                 <Border Grid.Column="2" Background="{Binding RiskBrush}" CornerRadius="4"
@@ -307,6 +311,8 @@
                             Command="{Binding OpenBackupFolderCommand}" />
                     <Button Content="Protokoll speichern" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                             Command="{Binding SaveLogCommand}" />
+                    <Button Content="Maschine vorbereiten" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                            Command="{Binding PrepareMachineCommand}" />
                     <Button Content="Analyse starten" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                             Command="{Binding AnalyzeCommand}" />
                     <Button Content="Letzte Änderung zurücknehmen" Style="{StaticResource GhostButton}" Margin="0,0,8,0"

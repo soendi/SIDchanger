@@ -6,7 +6,7 @@ on:
       tag:
         description: "Vorhandener Release-Tag, an den die EXE angehaengt wird"
         required: true
-        default: "v1.0.0.2"
+        default: "v1.0.0.3"
   push:
     tags:
       - "v*"
@@ -59,7 +59,7 @@ jobs:
         run: |
           [xml]$proj = Get-Content src/SidChanger.App/SidChanger.App.csproj
           $version = ($proj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
-          if (-not $version) { $version = "1.0.0.2" }
+          if (-not $version) { $version = "1.0.0.3" }
           $asset = "SidWechsler-$version-win-x64.exe"
           Move-Item "dist/win-x64/SidWechsler.exe" "dist/win-x64/$asset"
           $hash = (Get-FileHash "dist/win-x64/$asset" -Algorithm SHA256).Hash.ToLower()
@@ -88,9 +88,13 @@ jobs:
             SQL-Server-master, Vault/DPAPI, OneDrive- und App-Kennungen, Profil-ACLs,
             Taskplaner-Aufgaben.
 
-            **UCPD-Treiber:** UCPD laeuft und blockiert Registrierungsaenderungen? Das Programm
-            haelt ihn selbst an und setzt ihn auf deaktiviert - ein Klick in der Vorabpruefung
-            genuegt, oder die Aktion "UCPD-Treiber anhalten und deaktivieren" im Lauf.
+            **Maschine vorbereiten:** Ein Klick in der Fussleiste setzt BitLocker fuer die naechsten
+            Neustarts aus, schaltet den Defender-Echtzeitschutz ab, haelt den UCPD-Treiber an,
+            beendet die laufenden Dienste, traegt das Programm fuer die naechste Anmeldung ein und
+            startet neu. Danach blockiert nichts mehr.
+
+            **Abhaengige Haken:** Ein SID-Wechsel setzt ProfilList, Profilrechte und Taskplaner
+            automatisch mit und sperrt sie - kein unbrauchbarer Zwischenzustand mehr.
 
             **Vor jeder Aenderung** wird eine Sicherung unter
             `C:\\ProgramData\\SidChanger\\Backups` angelegt; die letzte Aenderung laesst sich

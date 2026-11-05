@@ -179,10 +179,8 @@ public sealed class ChangeRequest
             errors.Add("Für die Änderung der Computerbeschreibung muss ein Text angegeben werden.");
         }
 
-        if (Has(ChangeFeature.MachineSid) && Has(ChangeFeature.ProfileAcl) && !Has(ChangeFeature.ProfileList))
-        {
-            errors.Add("Profil-Berechtigungen können nur zusammen mit der ProfilList-Anpassung geändert werden.");
-        }
+        // Abhängige Aktionen: ein SID-Wechsel ohne die zugehörigen Schritte macht das System unbrauchbar.
+        errors.AddRange(FeatureDependencies.Missing(Features));
 
         return errors;
     }

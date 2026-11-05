@@ -232,6 +232,54 @@ Check("alle Titel sind deutsch und nicht leer",
     FeatureCatalog.All.All(i => i.Title.Length > 3 && i.Description.Length > 10));
 
 Console.WriteLine();
+Console.WriteLine("Feature-Abhängigkeiten");
+
+var sidOnly = FeatureDependencies.Expand(ChangeFeature.MachineSid);
+Check("SID-Wechsel zieht die ProfilList mit", FeatureDependencies.Has(sidOnly, ChangeFeature.ProfileList));
+Check("SID-Wechsel zieht die Profilrechte mit", FeatureDependencies.Has(sidOnly, ChangeFeature.ProfileAcl));
+Check("SID-Wechsel zieht den Taskplaner mit", FeatureDependencies.Has(sidOnly, ChangeFeature.TaskScheduler));
+Check("experimentelle DPAPI-Aktion bleibt freiwillig", !FeatureDependencies.Has(sidOnly, ChangeFeature.DpapiEfsKeys));
+Check("Computername bleibt unabhängig",
+    FeatureDependencies.Expand(ChangeFeature.ComputerName) == ChangeFeature.ComputerName);
+Check("ProfilList zieht den SID-Wechsel mit",
+    FeatureDependencies.Has(FeatureDependencies.Expand(ChangeFeature.ProfileList), ChangeFeature.MachineSid));
+Check("leere Auswahl bleibt leer", FeatureDependencies.Expand(ChangeFeature.None) == ChangeFeature.None);
+
+Check("ohne SID-Wechsel fallen die abhängigen Haken weg",
+    FeatureDependencies.RemoveWith(sidOnly, ChangeFeature.MachineSid) == ChangeFeature.None);
+
+var withoutProfileList = FeatureDependencies.RemoveWith(sidOnly, ChangeFeature.ProfileList);
+Check("Profilrechte fallen mit der ProfilList weg",
+    !FeatureDependencies.Has(withoutProfileList, ChangeFeature.ProfileAcl));
+Check("der SID-Wechsel bleibt dabei erhalten",
+    FeatureDependencies.Has(withoutProfileList, ChangeFeature.MachineSid));
+
+Check("ProfilList ist gesperrt, wenn die SID wechselt",
+    FeatureDependencies.IsForcedByOthers(sidOnly, ChangeFeature.ProfileList));
+Check("der SID-Wechsel bleibt immer abwählbar",
+    !FeatureDependencies.IsForcedByOthers(sidOnly, ChangeFeature.MachineSid));
+Check("unabhängige Aktionen werden nie gesperrt",
+    !FeatureDependencies.IsForcedByOthers(sidOnly, ChangeFeature.ComputerName));
+
+var missingPrerequisite = new ChangeRequest
+{
+    Features = ChangeFeature.ProfileList,
+    NewSid = new MachineSid(1, 2, 3),
+    GenerateRandomSid = false,
+};
+Check("fehlende Voraussetzung wird gemeldet",
+    string.Join(" ", missingPrerequisite.Validate()).Contains("voraus"));
+
+var sidWithoutCompanions = new ChangeRequest
+{
+    Features = ChangeFeature.MachineSid,
+    NewSid = new MachineSid(1, 2, 3),
+    GenerateRandomSid = false,
+};
+Check("SID-Wechsel ohne Begleiter wird gemeldet",
+    string.Join(" ", sidWithoutCompanions.Validate()).Contains("erfordert zusätzlich"));
+
+Console.WriteLine();
 Console.WriteLine("UCPD-Politik");
 
 var ucpdRunning = new UcpdSnapshot(true, true, false);

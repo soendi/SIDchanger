@@ -18,10 +18,18 @@ public enum PreflightActionKind
 
     /// <summary>Der UCPD-Treiber wird direkt im Programm angehalten und deaktiviert.</summary>
     StopUcpd = 2,
+
+    /// <summary>Ein Systemeingriff aus <see cref="SystemFix"/> wird direkt ausgeführt.</summary>
+    RunFix = 3,
 }
 
 /// <summary>Ein Sprungziel, das direkt zur betroffenen Windows-Einstellung führt.</summary>
-public sealed record PreflightAction(string Label, PreflightActionKind Kind, string FileName, string Arguments = "")
+public sealed record PreflightAction(
+    string Label,
+    PreflightActionKind Kind,
+    string FileName,
+    string Arguments = "",
+    SystemFix? Fix = null)
 {
     public static PreflightAction Open(string label, string fileName, string arguments = "") =>
         new(label, PreflightActionKind.Shell, fileName, arguments);
@@ -31,6 +39,10 @@ public sealed record PreflightAction(string Label, PreflightActionKind Kind, str
 
     public static PreflightAction StopUcpdDriver() =>
         new("UCPD jetzt anhalten", PreflightActionKind.StopUcpd, string.Empty);
+
+    /// <summary>Führt einen Systemeingriff direkt im Programm aus (Dienste, Defender, BitLocker).</summary>
+    public static PreflightAction RunSystemFix(string label, SystemFix fix) =>
+        new(label, PreflightActionKind.RunFix, string.Empty, string.Empty, fix);
 }
 
 /// <summary>Ergebnis einer Vorabprüfung, optional mit Sprungziel in die Windows-Einstellungen.</summary>
@@ -56,6 +68,7 @@ public static class SystemChecks
             CheckAntivirus(),
             CheckPendingUpdates(),
             CheckBitLocker(),
+            CheckServices(),
             CheckUcpd(),
             CheckModernWindows(),
         };
@@ -108,8 +121,8 @@ public static class SystemChecks
         {
             return new PreflightCheck("Virenscanner", false, true,
                 "Der Echtzeitschutz von Microsoft Defender ist aktiv. Er kann die SID-Änderung mittendrin abbrechen und das System beschädigen. " +
-                "Bitte den Echtzeitschutz deaktivieren (Defender → Viren- & Bedrohungsschutz → Einstellungen) und danach neu starten.",
-                PreflightAction.Open("Defender-Einstellungen öffnen", "windowsdefender://threatsettings"));
+                "Das Programm kann ihn direkt abschalten – verweigert Windows das (Manipulationsschutz), bleibt nur der Weg über die Defender-Einstellungen.",
+                PreflightAction.RunSystemFix("Echtzeitschutz abschalten", SystemFix.DisableDefender));
         }
 
         return new PreflightCheck("Virenscanner", true, false,
@@ -158,12 +171,35 @@ public static class SystemChecks
         if (protectionOn)
         {
             return new PreflightCheck("BitLocker", false, true,
-                "BitLocker ist für das Systemlaufwerk aktiv. Bitte den Schutz vorher aussetzen " +
-                "(manage-bde -protectors -disable C: -RebootCount 1), damit die Änderung nicht durch die Verschlüsselung blockiert wird.",
-                PreflightAction.Open("BitLocker-Verwaltung öffnen", "control.exe", "/name Microsoft.BitLockerDriveEncryption"));
+                "BitLocker ist für das Systemlaufwerk aktiv und blockiert die Änderung. Der Schutz lässt sich für die nächsten " +
+                "Neustarts aussetzen – Windows startet dann ohne Schlüsselabfrage, entschlüsselt wird nichts.",
+                PreflightAction.RunSystemFix("BitLocker für Neustart aussetzen", SystemFix.SuspendBitLocker));
         }
 
         return new PreflightCheck("BitLocker", true, false, "BitLocker ist nicht aktiv oder der Status ist unkritisch.");
+    }
+
+    private static PreflightCheck CheckServices()
+    {
+        var (exitCode, output) = Shell.RunPowerShell(
+            "(Get-Service | Where-Object { $_.Status -eq 'Running' }).Count", 30_000);
+
+        var countText = output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(line => int.TryParse(line, out _));
+
+        if (exitCode != 0 || !int.TryParse(countText, out var count))
+        {
+            return new PreflightCheck("Laufende Dienste", true, false,
+                "Die Anzahl laufender Dienste konnte nicht ermittelt werden.");
+        }
+
+        return count <= 40
+            ? new PreflightCheck("Laufende Dienste", true, false, $"{count} Dienste laufen – unkritisch für die Änderung.")
+            : new PreflightCheck("Laufende Dienste", false, false,
+                $"{count} Dienste laufen. Für die SID-Änderung sollten möglichst wenige Dienste aktiv sein, " +
+                "sonst bleiben Registry- und Dateisperren bestehen.",
+                PreflightAction.RunSystemFix("Alle Dienste stoppen", SystemFix.StopAllServices));
     }
 
     private static PreflightCheck CheckUcpd()

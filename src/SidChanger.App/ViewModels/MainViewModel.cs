@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -44,17 +45,16 @@ public sealed class MainViewModel : ObservableObject
 
         foreach (var feature in Features)
         {
-            feature.PropertyChanged += (_, _) =>
-            {
-                OnPropertyChanged(nameof(CanApply));
-                OnPropertyChanged(nameof(ComputerNameFeature));
-                OnPropertyChanged(nameof(DescriptionFeature));
-                RaiseCommandStates();
-            };
+            feature.PropertyChanged += (_, e) => OnFeatureChanged(feature, e);
         }
+
+        // Startzustand: abhängige Haken setzen und sperren.
+        ApplySelection(Features.Where(f => f.IsSelected)
+            .Aggregate(ChangeFeature.None, (all, f) => all | f.Feature));
 
         RegenerateSidCommand = new RelayCommand(RegenerateSid);
         OpenPreflightLinkCommand = new RelayCommand(OpenPreflightLink);
+        PrepareMachineCommand = new AsyncRelayCommand(PrepareMachineAsync, () => IsNotBusy);
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => IsNotBusy && CanApply);
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, () => IsNotBusy && CanApply);
         RevertCommand = new AsyncRelayCommand(RevertAsync, () => IsNotBusy && HasLastRun);
@@ -202,6 +202,8 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand RegenerateSidCommand { get; }
 
     public RelayCommand OpenPreflightLinkCommand { get; }
+
+    public AsyncRelayCommand PrepareMachineCommand { get; }
 
     public AsyncRelayCommand AnalyzeCommand { get; }
 
@@ -553,6 +555,12 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
+            if (action.Kind == PreflightActionKind.RunFix && action.Fix is { } fix)
+            {
+                RunSystemFix(fix);
+                return;
+            }
+
             if (action.Kind == PreflightActionKind.RestartElevated)
             {
                 var executable = Environment.ProcessPath;
@@ -621,6 +629,195 @@ public sealed class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    // --- Abhängigkeiten der Aktionen ----------------------------------------
+
+    private bool _syncingSelection;
+
+    private void OnFeatureChanged(FeatureOption option, PropertyChangedEventArgs e)
+    {
+        if (_syncingSelection || e.PropertyName != nameof(FeatureOption.IsSelected))
+        {
+            return;
+        }
+
+        var selected = Features.Where(f => f.IsSelected)
+            .Aggregate(ChangeFeature.None, (all, f) => all | f.Feature);
+
+        selected = option.IsSelected
+            ? FeatureDependencies.Expand(selected)
+            : FeatureDependencies.RemoveWith(selected, option.Feature);
+
+        ApplySelection(selected);
+    }
+
+    /// <summary>Setzt die Auswahl samt erzwungener Haken und sperrt diese.</summary>
+    private void ApplySelection(ChangeFeature selected)
+    {
+        _syncingSelection = true;
+
+        try
+        {
+            foreach (var option in Features)
+            {
+                option.IsSelected = FeatureDependencies.Has(selected, option.Feature);
+                option.SetLocked(FeatureDependencies.IsForcedByOthers(selected, option.Feature));
+            }
+        }
+        finally
+        {
+            _syncingSelection = false;
+        }
+
+        OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(ComputerNameFeature));
+        OnPropertyChanged(nameof(DescriptionFeature));
+        RaiseCommandStates();
+    }
+
+    // --- Systemeingriffe und Vorbereitung ------------------------------------
+
+    /// <summary>Führt einen Link aus der Vorabprüfung direkt aus (Dienste, Defender, BitLocker).</summary>
+    private async void RunSystemFix(SystemFix fix)
+    {
+        if (!ConfirmFix(fix))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusText = RunFixTitle(fix) + " läuft ...";
+
+        try
+        {
+            var result = await Task.Run(() => SystemFixes.Run(fix, LogInfo, LogWarning)).ConfigureAwait(true);
+            await RefreshPreflightAsync().ConfigureAwait(true);
+
+            StatusText = result.Success
+                ? RunFixTitle(fix) + ": erledigt."
+                : RunFixTitle(fix) + ": nicht vollständig – bitte Meldung lesen.";
+
+            MessageBox.Show(result.Summary, RunFixTitle(fix), MessageBoxButton.OK,
+                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            StatusText = RunFixTitle(fix) + " fehlgeschlagen.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, ex.Message));
+            MessageBox.Show(ex.Message, "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Bereitet die Maschine vor und bietet den Neustart an.</summary>
+    private async Task PrepareMachineAsync()
+    {
+        var answer = MessageBox.Show(
+            "Die Maschine wird für die SID-Änderung vorbereitet:\n\n" +
+            "  • BitLocker wird für die nächsten 3 Neustarts ausgesetzt\n" +
+            "  • Defender-Echtzeitschutz wird abgeschaltet (falls Windows es zulässt)\n" +
+            "  • UCPD-Treiber wird angehalten und deaktiviert\n" +
+            "  • laufende Dienste werden beendet\n\n" +
+            "Anschließend ist ein Neustart nötig. Das Programm öffnet sich nach der Anmeldung automatisch wieder.\n\n" +
+            "Wirklich vorbereiten?",
+            "Maschine vorbereiten", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusText = "Maschine wird vorbereitet ...";
+
+        try
+        {
+            var options = new PrepareOptions(
+                SuspendBitLocker: true,
+                DisableDefender: true,
+                DisableUcpd: true,
+                StopServices: true,
+                RestartAfterLogin: true);
+
+            var result = await Task.Run(() => SystemPreparation.Run(options, LogInfo, LogWarning)).ConfigureAwait(true);
+            await RefreshPreflightAsync().ConfigureAwait(true);
+
+            foreach (var step in result.Steps)
+            {
+                AppendLog(new LogEntry(DateTime.Now, LogLevel.Detail, step));
+            }
+
+            StatusText = result.Success
+                ? "Maschine vorbereitet – bitte neu starten."
+                : "Vorbereitung mit Hinweisen beendet – bitte Protokoll ansehen.";
+
+            var restart = MessageBox.Show(result.Summary + "\n\nJetzt neu starten?",
+                "Maschine vorbereiten", MessageBoxButton.YesNo,
+                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning, MessageBoxResult.Yes);
+
+            if (restart == MessageBoxResult.Yes)
+            {
+                SystemPreparation.ScheduleReboot(15, LogInfo);
+                StatusText = "Neustart in 15 Sekunden angefordert.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Vorbereitung fehlgeschlagen.";
+            AppendLog(new LogEntry(DateTime.Now, LogLevel.Error, "Vorbereitung: " + ex.Message));
+            MessageBox.Show("Die Vorbereitung ist fehlgeschlagen:\n\n" + ex.Message,
+                "SID-Wechsler", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task RefreshPreflightAsync()
+    {
+        var report = await _engine
+            .RunPreflightAsync(new ChangeRequest { IgnorePreflightWarnings = IgnoreWarnings })
+            .ConfigureAwait(true);
+
+        ApplyPreflight(report);
+    }
+
+    private void LogInfo(string message) => AppendLog(new LogEntry(DateTime.Now, LogLevel.Info, message));
+
+    private void LogWarning(string message) => AppendLog(new LogEntry(DateTime.Now, LogLevel.Warning, message));
+
+    private static bool ConfirmFix(SystemFix fix)
+    {
+        var (title, text) = fix switch
+        {
+            SystemFix.StopAllServices => ("Alle Dienste stoppen",
+                "Alle laufenden Dienste werden beendet – außer den kritischen Systemdiensten.\n\n" +
+                "Netzwerk, Drucker und weitere Dienste sind danach aus; nach einem Neustart starten sie je nach Starttyp wieder.\n\n" +
+                "Wirklich alle Dienste stoppen?"),
+            SystemFix.DisableDefender => ("Echtzeitschutz abschalten",
+                "Der Defender-Echtzeitschutz wird abgeschaltet und per Richtlinie deaktiviert.\n\n" +
+                "Ist der Manipulationsschutz aktiv, verweigert Windows die Änderung.\n\nWirklich abschalten?"),
+            SystemFix.SuspendBitLocker => ("BitLocker aussetzen",
+                "Der BitLocker-Schutz des Systemlaufwerks wird für die nächsten drei Neustarts ausgesetzt.\n\n" +
+                "Es wird nichts entschlüsselt; danach schaltet sich der Schutz automatisch wieder ein.\n\nWirklich aussetzen?"),
+            _ => ("Systemeingriff", "Fortfahren?"),
+        };
+
+        return MessageBox.Show(text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+               == MessageBoxResult.Yes;
+    }
+
+    private static string RunFixTitle(SystemFix fix) => fix switch
+    {
+        SystemFix.StopAllServices => "Dienste stoppen",
+        SystemFix.DisableDefender => "Echtzeitschutz abschalten",
+        SystemFix.SuspendBitLocker => "BitLocker aussetzen",
+        _ => "Systemeingriff",
+    };
 
     private void OpenBackupFolder()
     {
@@ -693,6 +890,7 @@ public sealed class MainViewModel : ObservableObject
 
     private void RaiseCommandStates()
     {
+        PrepareMachineCommand.RaiseCanExecuteChanged();
         AnalyzeCommand.RaiseCanExecuteChanged();
         ApplyCommand.RaiseCanExecuteChanged();
         RevertCommand.RaiseCanExecuteChanged();

@@ -8,14 +8,27 @@ Oberfläche ab, in der jede Einzelaktion einzeln ausgewählt werden kann.
 ## Download
 
 * **Fertige EXE** (Windows x64, self-contained, keine .NET-Installation nötig):
-  [`SidWechsler-1.0.0.2-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.2/SidWechsler-1.0.0.2-win-x64.exe) –
-  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.2/SidWechsler-1.0.0.2-win-x64.exe.sha256)
-* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.2>
+  [`SidWechsler-1.0.0.3-win-x64.exe`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.3/SidWechsler-1.0.0.3-win-x64.exe) –
+  Prüfsumme: [`…exe.sha256`](https://github.com/soendi/SIDchanger/releases/download/v1.0.0.3/SidWechsler-1.0.0.3-win-x64.exe.sha256)
+* **Release-Seite:** <https://github.com/soendi/SIDchanger/releases/tag/v1.0.0.3>
 * Selbst bauen: siehe [Bauen](#bauen).
 
 > **Wichtig:** Nur auf eigenen, geklonten Rechnern oder Images verwenden. Eine SID-Änderung
 > greift tief in Registrierung und Dateisystem ein. Vorher Sicherung anlegen, Virenscanner
 > deaktivieren, BitLocker aussetzen, andere Benutzer abmelden. Die Änderung niemals abbrechen.
+
+### Version 1.0.0.3
+
+* **„Maschine vorbereiten“** in der Fußleiste: setzt BitLocker für die nächsten drei Neustarts
+  aus (ohne zu entschlüsseln), schaltet den Defender-Echtzeitschutz ab, hält den UCPD-Treiber an,
+  beendet die laufenden Dienste, trägt das Programm per `RunOnce` für die nächste Anmeldung ein
+  und bietet den Neustart an. Danach blockiert beim nächsten Start nichts mehr.
+* **Haken sind voneinander abhängig:** Wird die Computer-SID gewechselt, werden ProfilList,
+  Profilrechte und Taskplaner automatisch mitgesetzt und gesperrt. Fällt der SID-Wechsel weg,
+  fallen sie mit weg. Fehlt eine Voraussetzung, meldet „Analyse“/„Anwenden“ das als Fehler.
+* **Direkte Eingriffe in der Vorabprüfung:** „Echtzeitschutz abschalten“, „BitLocker für Neustart
+  aussetzen“ und „Alle Dienste stoppen“ (neue Prüfzeile für laufende Dienste) laufen auf Klick
+  im Programm und melden ehrlich, was Windows zugelassen hat.
 
 ### Version 1.0.0.2
 

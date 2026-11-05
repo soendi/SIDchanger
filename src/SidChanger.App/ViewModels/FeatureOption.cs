@@ -6,7 +6,11 @@ namespace SidChanger.App.ViewModels;
 /// <summary>Eine auswählbare Aktion in der Oberfläche.</summary>
 public sealed class FeatureOption : ObservableObject
 {
+    private const string ForcedHint =
+        "Wird automatisch mitgesetzt – gehört zwingend zum SID-Wechsel, damit das System danach funktioniert.";
+
     private bool _isSelected;
+    private bool _isLocked;
 
     public FeatureOption(FeatureInfo info, bool isSelected)
     {
@@ -46,4 +50,25 @@ public sealed class FeatureOption : ObservableObject
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
     }
+
+    /// <summary>Haken wird von einer anderen Aktion erzwungen und lässt sich nicht abwählen.</summary>
+    public bool IsLocked
+    {
+        get => _isLocked;
+        private set
+        {
+            if (SetProperty(ref _isLocked, value))
+            {
+                OnPropertyChanged(nameof(CanToggle));
+                OnPropertyChanged(nameof(LockHint));
+            }
+        }
+    }
+
+    public bool CanToggle => !IsLocked;
+
+    public string LockHint => _isLocked ? ForcedHint : string.Empty;
+
+    /// <summary>Setzt den Sperrzustand (nur die Abhängigkeitslogik darf das).</summary>
+    public void SetLocked(bool locked) => IsLocked = locked;
 }
